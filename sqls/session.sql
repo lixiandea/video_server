@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS `sessions`(
+   `session_id` VARCHAR(255) NOT NULL PRIMARY KEY,
+   `TTL` TINYTEXT,
+   `login_name` VARCHAR(64)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8;
