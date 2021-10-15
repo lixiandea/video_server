@@ -37,13 +37,13 @@ func GetUserCredential(loginName string) (string, error) {
 	return pwd, err
 }
 
-func DelUserCredential(loginName string, pwd string) error {
-	stmtDel, err := conn.Prepare("DELETE FROM users WHERE login_name = ? AND pwd = ?")
+func DelUserCredential(loginName string) error {
+	stmtDel, err := conn.Prepare("DELETE FROM users WHERE login_name = ?")
 	if err != nil {
 		log.Print(err)
 		return err
 	}
-	_, err = stmtDel.Exec(loginName, pwd)
+	_, err = stmtDel.Exec(loginName)
 	defer stmtDel.Close()
 	if err != nil {
 		log.Print(err)

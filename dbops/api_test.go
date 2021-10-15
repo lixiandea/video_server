@@ -44,8 +44,8 @@ func TestGetUser(t *testing.T) {
 }
 
 func TestDelUser(t *testing.T) {
-	login_name, pwd := "lxd", "qwer1234"
-	err := DelUserCredential(login_name, pwd)
+	login_name := "lxd"
+	err := DelUserCredential(login_name)
 	if err != nil {
 		t.Errorf("Get user fail: %v", err)
 	}
