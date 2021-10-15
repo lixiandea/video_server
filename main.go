@@ -20,8 +20,10 @@ func RegisteryHandlers() *httprouter.Router {
 
 func main() {
 	r := RegisteryHandlers()
-	http.ListenAndServe(":10086", r)
+	// mh := NewMiddleware(r)
+	http.ListenAndServe(":10087", r)
 }
 
 // handler -> validate { request validate && user validate} -> business logic -> response
-// validate:
+// validate: session
+// main -> middleware -> defs -> handlers -> dbops -> response

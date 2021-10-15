@@ -25,4 +25,18 @@ var (
 			ErrorCode: "002",
 		},
 	}
+	ErrorDBError = ErrResponse{
+		HttpSc: 500,
+		Error: Err{
+			Error:     "Internal DB Error",
+			ErrorCode: "003",
+		},
+	}
+	ErrorInternalFaults = ErrResponse{
+		HttpSc: 500,
+		Error: Err{
+			Error:     "Error Internal Faults",
+			ErrorCode: "004",
+		},
+	}
 )
