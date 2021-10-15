@@ -1,6 +1,7 @@
 package dbops
 
 import (
+	"database/sql"
 	"log"
 )
 
@@ -11,8 +12,12 @@ func AddUserCredential(loginName string, pwd string) error {
 		return err
 	}
 
-	stmtInsert.Exec(loginName, pwd)
-	stmtInsert.Close()
+	_, err = stmtInsert.Exec(loginName, pwd)
+	defer stmtInsert.Close()
+
+	if err != nil {
+		return err
+	}
 	return err
 }
 
@@ -24,8 +29,11 @@ func GetUserCredential(loginName string) (string, error) {
 	}
 
 	var pwd string
-	stmtGet.QueryRow(loginName).Scan(&pwd)
-	stmtGet.Close()
+	err = stmtGet.QueryRow(loginName).Scan(&pwd)
+	defer stmtGet.Close()
+	if err != nil && err != sql.ErrNoRows {
+		log.Print(err)
+	}
 	return pwd, err
 }
 
@@ -35,7 +43,10 @@ func DelUserCredential(loginName string, pwd string) error {
 		log.Print(err)
 		return err
 	}
-	stmtDel.Exec(loginName, pwd)
-	stmtDel.Close()
+	_, err = stmtDel.Exec(loginName, pwd)
+	defer stmtDel.Close()
+	if err != nil {
+		log.Print(err)
+	}
 	return err
 }
