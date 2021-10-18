@@ -1,13 +1,13 @@
 package main
 
 import (
+	"api/dbops"
+	"api/defs"
+	"api/session"
 	"encoding/json"
 	"io"
 	"io/ioutil"
 	"net/http"
-	"video_server/dbops"
-	"video_server/defs"
-	"video_server/session"
 
 	"github.com/julienschmidt/httprouter"
 )

@@ -1,11 +1,11 @@
 package dbops
 
 import (
+	"api/defs"
 	"database/sql"
 	"log"
 	"strconv"
 	"sync"
-	"video_server/defs"
 )
 
 func InsertSession(sid string, ttl int64, userName string) error {

@@ -1,10 +1,10 @@
 package main
 
 import (
+	"api/defs"
 	"encoding/json"
 	"io"
 	"net/http"
-	"video_server/defs"
 )
 
 func SendErrorResponse(w http.ResponseWriter, errResp defs.ErrResponse) {

@@ -1,9 +1,9 @@
 package main
 
 import (
+	"api/defs"
+	"api/session"
 	"net/http"
-	"video_server/defs"
-	"video_server/session"
 )
 
 var HEADER_FIELD_SESSION = "X_Session-Id"
@@ -32,7 +32,5 @@ func ValidateUser(w http.ResponseWriter, r *http.Request) bool {
 		SendErrorResponse(w, defs.ErrorRequestBodyParseFailed)
 		return false
 	}
-
 	return true
-
 }

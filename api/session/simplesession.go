@@ -1,10 +1,10 @@
 package session
 
 import (
+	"api/dbops"
+	"api/defs"
 	"sync"
 	"time"
-	"video_server/dbops"
-	"video_server/defs"
 
 	uuid "github.com/satori/go.uuid"
 )

@@ -1,10 +1,10 @@
 package dbops
 
 import (
+	"api/defs"
 	"database/sql"
 	"fmt"
 	"time"
-	"video_server/defs"
 
 	uuid "github.com/satori/go.uuid"
 )
