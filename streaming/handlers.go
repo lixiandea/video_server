@@ -1,13 +1,13 @@
 package main
 
 import (
+	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"text/template"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -59,10 +59,10 @@ func TestPageHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params
 	if err != nil {
 		log.Fatalf("get full path fail")
 	}
-	log.Panicf("template path: %s", fullpath)
-	t, err := template.ParseFiles(TEMPLATE_PATH + "upload.html")
+	log.Printf("template path: %s", fullpath)
+	t, err := template.ParseFiles(fullpath)
 	if err != nil {
-		log.Printf("err parse html template")
+		log.Panic("err parse html template")
 	}
 	t.Execute(w, nil)
 }
