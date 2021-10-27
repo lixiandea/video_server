@@ -42,7 +42,7 @@ forloop:
 		select {
 		case vid := <-dc:
 			go func(id interface{}) {
-				if err := deleteVideo; err != nil {
+				if err := deleteVideo(id.(string)); err != nil {
 					errMap.Store(id, err)
 					return
 				}

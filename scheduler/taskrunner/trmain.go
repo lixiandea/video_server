@@ -27,5 +27,4 @@ func Start() {
 	r := NewRunner(30, false, VideoClearDispatcher, VideoClearExecutor)
 	w := NewWorker(30, r)
 	w.startWorker()
-
 }
