@@ -1,6 +1,7 @@
-package main
+package streaming
 
 import (
+	"github.com/lixiandea/video_server/streaming"
 	"log"
 	"net/http"
 
@@ -9,15 +10,15 @@ import (
 
 func RegisteryHandlers() *httprouter.Router {
 	router := httprouter.New()
-	router.GET("/videos/:vid-id", GetVideoHandler)
-	router.POST("/upload/:vid-id", UploadVideoHandler)
-	router.GET("/video/testpage", TestPageHandler)
+	router.GET("/videos/:vid-id", streaming.GetVideoHandler)
+	router.POST("/upload/:vid-id", streaming.UploadVideoHandler)
+	router.GET("/video/testpage", streaming.TestPageHandler)
 	return router
 }
 
 func main() {
 	r := RegisteryHandlers()
-	mh := NewMiddleware(r, 200)
+	mh := streaming.NewMiddleware(r, 200)
 	// mh := NewMiddleware(r)
 	log.Printf("streaming listen to 10088")
 	err := http.ListenAndServe(":10088", mh)

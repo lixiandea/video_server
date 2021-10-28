@@ -1,4 +1,4 @@
-package main
+package scheduler
 
 import (
 	"github.com/lixiandea/video_server/dbops"

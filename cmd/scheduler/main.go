@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/lixiandea/video_server/scheduler"
 	"github.com/lixiandea/video_server/scheduler/taskrunner"
 	"log"
 	"net/http"
@@ -11,7 +12,7 @@ import (
 func RegisterHandler() *httprouter.Router {
 	router := httprouter.New()
 
-	router.GET("/video-delete-record/:vid-id", VideoDelRecHandler)
+	router.GET("/video-delete-record/:vid-id", scheduler.VideoDelRecHandler)
 	return router
 }
 
