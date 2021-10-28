@@ -1,9 +1,8 @@
 package session
 
 import (
-	"github.com/lixiandea/video_server/api/dbops"
+	"github.com/lixiandea/video_server/dbops"
 	"github.com/lixiandea/video_server/entity"
-	"github.com/lixiandea/video_server/scheduler/defs"
 	"sync"
 	"time"
 
@@ -31,7 +30,7 @@ func LoadSessionsFromDB() {
 		return
 	}
 	r.Range(func(key, value interface{}) bool {
-		ss := value.(*defs.SimpleSession)
+		ss := value.(*entity.SimpleSession)
 		sessionMap.Store(key, ss)
 		return true
 	})
@@ -41,7 +40,7 @@ func GenerateNewSessionId(un string) string {
 	id := uuid.NewV4().String()
 	ctime := time.Now().UnixNano() / int64(time.Millisecond)
 	ttl := ctime + 30*60*1000 // serverside session valid time
-	ss := &defs.SimpleSession{UserName: un, TTL: ttl}
+	ss := &entity.SimpleSession{UserName: un, TTL: ttl}
 	sessionMap.Store(id, ss)
 	dbops.InsertSession(id, ss.TTL, ss.UserName)
 	return id
@@ -50,11 +49,11 @@ func IsExpireSession(sid string) (string, bool) {
 	ss, ok := sessionMap.Load(sid)
 	if ok {
 		ct := nowInMilli()
-		if ss.(*defs.SimpleSession).TTL < ct {
+		if ss.(*entity.SimpleSession).TTL < ct {
 			deleteExpireSession(sid)
 			return "", true
 		}
-		return ss.(*defs.SimpleSession).UserName, false
+		return ss.(*entity.SimpleSession).UserName, false
 	}
 	return "", true
 

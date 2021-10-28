@@ -2,9 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/lixiandea/video_server/api/dbops"
-	"github.com/lixiandea/video_server/api/defs"
+	"github.com/lixiandea/video_server/dbops"
 	"github.com/lixiandea/video_server/entity"
+	"github.com/lixiandea/video_server/user_service/session"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -14,21 +14,21 @@ import (
 
 func CreateUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	res, _ := ioutil.ReadAll(r.Body)
-	ubody := &defs.UserCredential{}
+	ubody := &entity.UserCredential{}
 
 	if err := json.Unmarshal(res, ubody); err != nil {
-		SendErrorResponse(w, defs.ErrorRequestBodyParseFailed)
+		SendErrorResponse(w, entity.ErrorRequestBodyParseFailed)
 		return
 	}
 
 	if err := dbops.AddUserCredential(ubody.UserName, ubody.Pwd); err != nil {
-		SendErrorResponse(w, defs.ErrorDBError)
+		SendErrorResponse(w, entity.ErrorDBError)
 	}
 	id := session.GenerateNewSessionId(ubody.UserName)
-	su := defs.SignedUp{Success: true, SessionID: id}
+	su := entity.SignedUp{Success: true, SessionID: id}
 
 	if resp, err := json.Marshal(su); err != nil {
-		SendErrorResponse(w, defs.ErrorInternalFaults)
+		SendErrorResponse(w, entity.ErrorInternalFaults)
 	} else {
 		SendNormalResponse(w, string(resp), 201)
 	}

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/lixiandea/video_server/api/defs"
-	"github.com/lixiandea/video_server/api/session"
+	"github.com/lixiandea/video_server/entity"
+	"github.com/lixiandea/video_server/user_service/session"
 	"net/http"
 )
 
@@ -29,7 +29,7 @@ func ValidateUser(w http.ResponseWriter, r *http.Request) bool {
 	uname := r.Header.Get(HEADER_FIELD_SESSION)
 
 	if len(uname) == 0 {
-		SendErrorResponse(w, defs.ErrorRequestBodyParseFailed)
+		SendErrorResponse(w, entity.ErrorRequestBodyParseFailed)
 		return false
 	}
 	return true
