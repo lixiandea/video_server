@@ -1,4 +1,4 @@
-module github.com/lixiandea/video_server/api
+module github.com/lixiandea/video_server/user_service
 
 go 1.16
 

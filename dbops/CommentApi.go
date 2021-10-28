@@ -2,13 +2,13 @@ package dbops
 
 import (
 	"database/sql"
-	"github.com/lixiandea/video_server/api/defs"
+	"github.com/lixiandea/video_server/entity"
 	"time"
 
 	uuid "github.com/satori/go.uuid"
 )
 
-func AddNewComment(vid string, aid int, content string) (*defs.Comment, error) {
+func AddNewComment(vid string, aid int, content string) (*entity.Comment, error) {
 	id := uuid.NewV4().String()
 	t := time.Now()
 
@@ -25,11 +25,11 @@ func AddNewComment(vid string, aid int, content string) (*defs.Comment, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &defs.Comment{Id: id, AuthorId: aid, VideoId: vid, Content: content, Ctime: ctime}, nil
+	return &entity.Comment{Id: id, AuthorId: aid, VideoId: vid, Content: content, Ctime: ctime}, nil
 
 }
 
-func GetComments(id string) (*defs.Comment, error) {
+func GetComments(id string) (*entity.Comment, error) {
 	smtmGet, err := conn.Prepare(
 		`SELECT author_id, video_id, content, time FROM comments WHERE id = ?`)
 	if err != nil {
@@ -46,7 +46,7 @@ func GetComments(id string) (*defs.Comment, error) {
 		return nil, nil
 	}
 
-	return &defs.Comment{Id: id, AuthorId: author_id, VideoId: video_id, Content: content, Ctime: ctime}, nil
+	return &entity.Comment{Id: id, AuthorId: author_id, VideoId: video_id, Content: content, Ctime: ctime}, nil
 }
 
 func DeleteComment(id string) error {

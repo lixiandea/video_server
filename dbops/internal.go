@@ -2,7 +2,7 @@ package dbops
 
 import (
 	"database/sql"
-	"github.com/lixiandea/video_server/api/defs"
+	"github.com/lixiandea/video_server/entity"
 	"log"
 	"strconv"
 	"sync"
@@ -24,8 +24,8 @@ func InsertSession(sid string, ttl int64, userName string) error {
 	return nil
 }
 
-func RetieveSession(sid string) (*defs.SimpleSession, error) {
-	ss := &defs.SimpleSession{}
+func RetieveSession(sid string) (*entity.SimpleSession, error) {
+	ss := &entity.SimpleSession{}
 
 	smtmOut, err := conn.Prepare("SELECT TTL, login_name FROM sessions WHERE session_id = ?")
 
@@ -74,7 +74,7 @@ func RetieveSessions() (*sync.Map, error) {
 		}
 
 		if ttl, err1 := strconv.ParseInt(ttlstr, 10, 64); err1 == nil {
-			ss := &defs.SimpleSession{UserName: loginName, TTL: ttl}
+			ss := &entity.SimpleSession{UserName: loginName, TTL: ttl}
 			m.Store(id, ss)
 			log.Printf("get session id: %s, ttl: %d \n", id, ss.TTL)
 		}
