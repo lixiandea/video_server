@@ -1,4 +1,4 @@
-package main
+package user_service
 
 import (
 	"github.com/lixiandea/video_server/entity"
