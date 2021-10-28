@@ -1,8 +1,8 @@
 package main
 
 import (
-	"api/defs"
 	"encoding/json"
+	"github.com/lixiandea/video_server/api/defs"
 	"io"
 	"net/http"
 )

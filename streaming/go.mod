@@ -1,4 +1,4 @@
-module streaming
+module github.com/lixiandea/video_server/streaming
 
 go 1.16
 

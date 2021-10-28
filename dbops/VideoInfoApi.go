@@ -3,13 +3,13 @@ package dbops
 import (
 	"database/sql"
 	"fmt"
-	"github.com/lixiandea/video_server/scheduler/defs"
+	"github.com/lixiandea/video_server/entity"
 	"time"
 
 	uuid "github.com/satori/go.uuid"
 )
 
-func AddNewVideo(aid int, name string) (*defs.VideoInfo, error) {
+func AddNewVideo(aid int, name string) (*entity.VideoInfo, error) {
 	vid := uuid.NewV4().String()
 
 	t := time.Now()
@@ -26,7 +26,7 @@ func AddNewVideo(aid int, name string) (*defs.VideoInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &defs.VideoInfo{Id: vid, AuthorId: aid, Name: name, DisplayTime: ctime}, err
+	return &entity.VideoInfo{Id: vid, AuthorId: aid, Name: name, DisplayTime: ctime}, err
 }
 
 func DelVideoInfo(vid string) error {
@@ -42,7 +42,7 @@ func DelVideoInfo(vid string) error {
 	return err
 }
 
-func GetVideoInfo(vid string) (*defs.VideoInfo, error) {
+func GetVideoInfo(vid string) (*entity.VideoInfo, error) {
 
 	stmtGet, err := conn.Prepare("Select author_id, name, display_ctime FROM video_info where id = ?")
 
@@ -61,5 +61,5 @@ func GetVideoInfo(vid string) (*defs.VideoInfo, error) {
 		return nil, nil
 	}
 
-	return &defs.VideoInfo{Id: vid, AuthorId: author_id, Name: name, DisplayTime: display_ctime}, err
+	return &entity.VideoInfo{Id: vid, AuthorId: author_id, Name: name, DisplayTime: display_ctime}, err
 }
