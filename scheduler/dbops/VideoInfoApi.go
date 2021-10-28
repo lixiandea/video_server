@@ -1,9 +1,9 @@
 package dbops
 
 import (
-	"api/defs"
 	"database/sql"
 	"fmt"
+	"github.com/lixiandea/video_server/scheduler/defs"
 	"time"
 
 	uuid "github.com/satori/go.uuid"

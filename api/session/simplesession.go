@@ -1,8 +1,8 @@
 package session
 
 import (
-	"api/dbops"
-	"api/defs"
+	"github.com/lixiandea/video_server/api/dbops"
+	"github.com/lixiandea/video_server/api/defs"
 	"sync"
 	"time"
 

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"api/defs"
-	"api/session"
+	"github.com/lixiandea/video_server/api/defs"
+	"github.com/lixiandea/video_server/api/session"
 	"net/http"
 )
 

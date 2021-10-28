@@ -1,10 +1,10 @@
 package main
 
 import (
-	"api/dbops"
-	"api/defs"
-	"api/session"
 	"encoding/json"
+	"github.com/lixiandea/video_server/api/dbops"
+	"github.com/lixiandea/video_server/api/defs"
+	"github.com/lixiandea/video_server/api/session"
 	"io"
 	"io/ioutil"
 	"net/http"

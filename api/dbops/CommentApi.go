@@ -1,8 +1,8 @@
 package dbops
 
 import (
-	"api/defs"
 	"database/sql"
+	"github.com/lixiandea/video_server/api/defs"
 	"time"
 
 	uuid "github.com/satori/go.uuid"

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
@@ -21,6 +22,7 @@ func RegisteryHandlers() *httprouter.Router {
 func main() {
 	r := RegisteryHandlers()
 	// mh := NewMiddleware(r)
+	log.Printf("streaming listen to 10087")
 	http.ListenAndServe(":10087", r)
 }
 
