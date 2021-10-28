@@ -2,7 +2,7 @@ package taskrunner
 
 import (
 	"errors"
-	"github.com/lixiandea/video_server/scheduler/dbops"
+	"github.com/lixiandea/video_server/dbops"
 	"log"
 	"os"
 	"sync"

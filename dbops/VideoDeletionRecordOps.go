@@ -1,8 +1,6 @@
 package dbops
 
-import (
-	"log"
-)
+import "log"
 
 func ReadVideoDeletionRecord(count int) ([]string, error) {
 	stmtOut, err := conn.Prepare("SELECT id FROM video_del_rec limit ?")

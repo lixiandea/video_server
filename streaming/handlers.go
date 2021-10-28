@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/lixiandea/video_server/entity"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -14,8 +15,8 @@ import (
 )
 
 func UploadVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	r.Body = http.MaxBytesReader(w, r.Body, MAX_UPLOAD_SIZE)
-	if err := r.ParseMultipartForm(MAX_UPLOAD_SIZE); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, entity.MAX_UPLOAD_SIZE)
+	if err := r.ParseMultipartForm(entity.MAX_UPLOAD_SIZE); err != nil {
 		sendErrorResponse(w, http.StatusBadRequest, "文件过大")
 		return
 	}
@@ -30,7 +31,7 @@ func UploadVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Par
 		return
 	}
 	fn := p.ByName("vid-id")
-	err = ioutil.WriteFile(VIDEO_DIR+fn, data, 0666) // path, data, chmod
+	err = ioutil.WriteFile(entity.VIDEO_DIR+fn, data, 0666) // path, data, chmod
 	if err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "写文件错误")
 		return
@@ -41,7 +42,7 @@ func UploadVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Par
 
 func GetVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	vid := p.ByName("vid-id")
-	vl := VIDEO_DIR + vid
+	vl := entity.VIDEO_DIR + vid
 	video, err := os.Open(vl)
 	defer video.Close()
 	if err != nil {
@@ -55,7 +56,7 @@ func GetVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params
 }
 
 func TestPageHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	fullpath, err := filepath.Abs(TEMPLATE_PATH + "upload.html")
+	fullpath, err := filepath.Abs(entity.TEMPLATE_PATH + "upload.html")
 	if err != nil {
 		log.Fatalf("get full path fail")
 	}

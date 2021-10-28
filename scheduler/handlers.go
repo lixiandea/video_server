@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/lixiandea/video_server/scheduler/dbops"
+	"github.com/lixiandea/video_server/dbops"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"

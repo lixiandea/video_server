@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/lixiandea/video_server/api/defs"
+	"github.com/lixiandea/video_server/entity"
 	"io"
 	"net/http"
 )
 
-func SendErrorResponse(w http.ResponseWriter, errResp defs.ErrResponse) {
+func SendErrorResponse(w http.ResponseWriter, errResp entity.ErrResponse) {
 	w.WriteHeader(errResp.HttpSc)
 	resStr, _ := json.Marshal(&errResp.Error)
 	io.WriteString(w, string(resStr))
