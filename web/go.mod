@@ -4,8 +4,9 @@ go 1.17
 
 require (
 	github.com/julienschmidt/httprouter v1.3.0
-	github.com/lixiandea/video_server/entity v0.0.0-20211029092804-649abd09050f
-	github.com/lixiandea/video_server/user_service v0.0.0-20211029092804-649abd09050f
+	github.com/lixiandea/video_server/entity v0.0.0-20211107142625-9324bc0eb0d1
+	github.com/lixiandea/video_server/user_service v0.0.0-20211107142625-9324bc0eb0d1
+
 )
 
 require (

@@ -9,16 +9,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func RegisterHandler() *httprouter.Router {
-	router := httprouter.New()
-
-	router.GET("/video-delete-record/:vid-id", scheduler.VideoDelRecHandler)
-	return router
-}
-
 func main() {
 	go taskrunner.Start()
-	r := RegisterHandler()
+	r := scheduler.RegisterHandlers()
 	log.Printf("listen to :10089")
 	err := http.ListenAndServe(":10089", r)
 	if err != nil {

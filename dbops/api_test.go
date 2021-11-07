@@ -108,7 +108,7 @@ func TestCommentWorkflow(t *testing.T) {
 }
 
 func TestAddComment(t *testing.T) {
-	comment, err := AddNewComment(videoID, 1, "testVideo")
+	err := AddNewComment(videoID, 1, "testVideo")
 	if err != nil {
 		t.Errorf("%v", err)
 	}

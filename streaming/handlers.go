@@ -14,7 +14,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func UploadVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func uploadVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	r.Body = http.MaxBytesReader(w, r.Body, entity.MAX_UPLOAD_SIZE)
 	if err := r.ParseMultipartForm(entity.MAX_UPLOAD_SIZE); err != nil {
 		sendErrorResponse(w, http.StatusBadRequest, "文件过大")
@@ -40,7 +40,7 @@ func UploadVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Par
 	io.WriteString(w, "upload success")
 }
 
-func GetVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func getVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	vid := p.ByName("vid-id")
 	vl := entity.VIDEO_DIR + vid
 	video, err := os.Open(vl)
@@ -55,7 +55,7 @@ func GetVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params
 
 }
 
-func TestPageHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func testPageHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	fullpath, err := filepath.Abs(entity.TEMPLATE_PATH + "upload.html")
 	if err != nil {
 		log.Fatalf("get full path fail")
@@ -66,4 +66,12 @@ func TestPageHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params
 		log.Panic("err parse html template")
 	}
 	t.Execute(w, nil)
+}
+
+func RegisteryHandlers() *httprouter.Router {
+	router := httprouter.New()
+	router.GET("/videos/:vid-id", getVideoHandler)
+	router.POST("/upload/:vid-id", uploadVideoHandler)
+	router.GET("/video/testpage", testPageHandler)
+	return router
 }

@@ -1,5 +1,7 @@
 package entity
 
+import "net/http"
+
 type Err struct {
 	Error     string `json:"error"`
 	ErrorCode string `json:"error_code"`
@@ -44,6 +46,13 @@ var (
 		Error: Err{
 			Error:     "Method not allowed",
 			ErrorCode: "005",
+		},
+	}
+	ErrorNotAuthUser = ErrResponse{
+		HttpSc: http.StatusNonAuthoritativeInfo,
+		Error: Err{
+			Error:     "Username not compatible,check your name and password.",
+			ErrorCode: "006",
 		},
 	}
 )

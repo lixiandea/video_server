@@ -21,7 +21,7 @@ type UserPage struct {
 	Name string
 }
 
-func APIHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func apiHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	if r.Method != http.MethodPost {
 		user_service.SendErrorResponse(w, entity.ErrorMethodError)
 		return
@@ -37,7 +37,7 @@ func APIHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	defer r.Body.Close()
 }
 
-func UserHomeHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func userHomeHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	cname, err1 := r.Cookie("username")
 	_, err2 := r.Cookie("session")
 	if err1 != nil || err2 != nil {
@@ -63,7 +63,7 @@ func UserHomeHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params
 	t.Execute(w, u)
 }
 
-func HomeHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func homeHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	cname, err1 := r.Cookie("username")
 	sid, err2 := r.Cookie("session")
 	if err1 != nil || err2 != nil {
@@ -85,4 +85,19 @@ func proxyHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) 
 	u, _ := url.Parse("http://127.0.0.1:10087")
 	proxy := httputil.NewSingleHostReverseProxy(u)
 	proxy.ServeHTTP(w, r)
+}
+
+func RegisterHandlers() *httprouter.Router {
+	// bind handlers
+	router := httprouter.New()
+	router.GET("/", homeHandler)
+	router.POST("/", homeHandler)
+	router.GET("/userhome", userHomeHandler)
+	router.POST("/userhome", userHomeHandler)
+	router.POST("/api", apiHandler)
+	//static file bind
+	router.ServeFiles("/statics/*filepath", http.Dir("./template"))
+
+	router.POST("/vedio/:vid", proxyHandler)
+	return router
 }

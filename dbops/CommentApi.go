@@ -8,7 +8,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-func AddNewComment(vid string, aid int, content string) (*entity.Comment, error) {
+func AddNewComment(vid string, aid int, content string)  error {
 	id := uuid.NewV4().String()
 	t := time.Now()
 
@@ -18,14 +18,14 @@ func AddNewComment(vid string, aid int, content string) (*entity.Comment, error)
 		(id, author_id, video_id, content, time) VALUES
 		(?,?,?,?,?)`)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	_, err = smtmIns.Exec(id, aid, vid, content, ctime)
 	defer smtmIns.Close()
 	if err != nil {
-		return nil, err
+		return  err
 	}
-	return &entity.Comment{Id: id, AuthorId: aid, VideoId: vid, Content: content, Ctime: ctime}, nil
+	return nil
 
 }
 

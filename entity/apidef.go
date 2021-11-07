@@ -13,6 +13,9 @@ type VideoInfo struct {
 	CreateTime  string
 }
 
+type VideosInfo struct {
+	Videos []VideosInfo
+}
 type Comment struct {
 	Id       string
 	AuthorId int

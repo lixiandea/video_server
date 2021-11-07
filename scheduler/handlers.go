@@ -7,7 +7,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func VideoDelRecHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func videoDelRecHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	vid := p.ByName("vid-id")
 	if len(vid) == 0 {
 		sendResponse(w, 400, "vid should not be empty!")
@@ -19,5 +19,11 @@ func VideoDelRecHandler(w http.ResponseWriter, r *http.Request, p httprouter.Par
 		return
 	}
 	sendResponse(w, 200, "")
+}
 
+func RegisterHandlers() *httprouter.Router {
+	router := httprouter.New()
+
+	router.GET("/video-delete-record/:vid-id", videoDelRecHandler)
+	return router
 }
