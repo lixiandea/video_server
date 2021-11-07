@@ -39,4 +39,11 @@ var (
 			ErrorCode: "004",
 		},
 	}
+	ErrorMethodError = ErrResponse{
+		HttpSc: 405,
+		Error: Err{
+			Error:     "Method not allowed",
+			ErrorCode: "005",
+		},
+	}
 )
