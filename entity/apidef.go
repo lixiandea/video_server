@@ -5,6 +5,21 @@ type UserCredential struct {
 	Pwd      string `json:"password"`
 }
 
+type NewVideo struct {
+	AuthorId int    `json:"author_id"`
+	Name     string `json:"name"`
+}
+
+type User struct {
+	Id        int
+	LoginName string
+	Pwd       string
+}
+
+type UserInfo struct {
+	Id int
+}
+
 type VideoInfo struct {
 	Id          string
 	AuthorId    int
@@ -24,6 +39,9 @@ type Comment struct {
 	Ctime    string
 }
 
+type Comments struct {
+	Comments []*Comment
+}
 type SimpleSession struct {
 	UserName string
 	TTL      int64

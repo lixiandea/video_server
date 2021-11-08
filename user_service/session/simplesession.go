@@ -56,5 +56,4 @@ func IsExpireSession(sid string) (string, bool) {
 		return ss.(*entity.SimpleSession).UserName, false
 	}
 	return "", true
-
 }

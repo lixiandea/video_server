@@ -112,7 +112,6 @@ func TestAddComment(t *testing.T) {
 	if err != nil {
 		t.Errorf("%v", err)
 	}
-	commentId = comment.Id
 }
 
 func TestGetComment(t *testing.T) {

@@ -2,6 +2,7 @@ package dbops
 
 import (
 	"database/sql"
+	"github.com/lixiandea/video_server/entity"
 	"log"
 )
 
@@ -49,4 +50,22 @@ func DelUserCredential(loginName string) error {
 		log.Print(err)
 	}
 	return err
+}
+
+func GetUser(userName string) (*entity.User, error) {
+	stmtOut, err := conn.Prepare("SELECT id, pwd FROM users where login_name = ? ")
+	if err != nil {
+		return nil, err
+	}
+	var id int
+	var pwd string
+	err = stmtOut.QueryRow(userName).Scan(&id, &pwd)
+	if err != nil {
+		return nil, err
+	}
+	return &entity.User{
+		Id:        id,
+		LoginName: userName,
+		Pwd:       pwd,
+	}, nil
 }
