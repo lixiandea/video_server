@@ -14,3 +14,9 @@ require (
 	github.com/lixiandea/video_server/dbops v0.0.0-20211028101928-3af935eae33d // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
 )
+
+
+replace (
+	github.com/lixiandea/video_server/user_service => ../user_service
+	github.com/lixiandea/video_server/dbops => ../dbops
+)

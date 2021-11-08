@@ -14,7 +14,7 @@ type VideoInfo struct {
 }
 
 type VideosInfo struct {
-	Videos []VideosInfo
+	Videos []*VideoInfo
 }
 type Comment struct {
 	Id       string

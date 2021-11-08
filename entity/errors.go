@@ -55,4 +55,11 @@ var (
 			ErrorCode: "006",
 		},
 	}
+	ErrorTest = ErrResponse{
+		HttpSc: http.StatusFound,
+		Error: Err{
+			Error:     "Username not compatible,check your name and password.",
+			ErrorCode: "006",
+		},
+	}
 )

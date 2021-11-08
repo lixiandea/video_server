@@ -87,8 +87,8 @@ func listVideos(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		return
 	}
 
-	videoInfos :=&entity.VideosInfo{Videos:videoInfos}
-	if resp, err := json.Marshal(videoInfos); err != nil{
+	VIS :=&entity.VideosInfo{Videos:videoInfos}
+	if resp, err := json.Marshal(VIS); err != nil{
 		SendErrorResponse(w, entity.ErrorInternalFaults)
 	}else {
 		SendNormalResponse(w, string(resp), 200)
@@ -140,6 +140,7 @@ func updateComments(w http.ResponseWriter, r *http.Request, p httprouter.Params)
 	}else {
 		SendNormalResponse(w, "ok", 201)
 	}
+	SendErrorResponse(w, entity.ErrorTest)
 }
 
 
