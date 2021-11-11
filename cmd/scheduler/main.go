@@ -5,8 +5,6 @@ import (
 	"github.com/lixiandea/video_server/scheduler/taskrunner"
 	"log"
 	"net/http"
-
-	"github.com/julienschmidt/httprouter"
 )
 
 func main() {

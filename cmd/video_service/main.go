@@ -4,8 +4,6 @@ import (
 	"github.com/lixiandea/video_server/streaming"
 	"log"
 	"net/http"
-
-	"github.com/julienschmidt/httprouter"
 )
 
 func main() {

@@ -53,15 +53,14 @@ func GetComment(id string) (*entity.Comment, error) {
 func GetComments(vid string, from, to int) ([]*entity.Comment, error) {
 	stmtGet, err := conn.Prepare(`SELECT comments.id, users.login_name, comments.content FROM comments
 		INNER JOIN users ON comments.author_id = users.id
-		WHERE comments.video_id = ? AND comments.time > FROM_UNIXTIME(?) AND comments.time <= FROM_UNIXTIME(?)
-		ORDER BY comments.time DESC`)
+		WHERE comments.video_id = ? `)
 	defer stmtGet.Close()
 	if err != nil {
 		log.Printf("Error get comments: %v", err)
 		return nil, err
 	}
 	var comments []*entity.Comment
-	rows, err := stmtGet.Query(vid, from, to)
+	rows, err := stmtGet.Query(vid)
 	if err != nil {
 		return nil, err
 	}

@@ -131,10 +131,10 @@ $(document).ready(function() {
             formData.append('file', $('#inputFile')[0].files[0]);
 
             $.ajax({
-                url : 'http://' + window.location.hostname + ':8080/upload/' + obj['id'],
+                url : 'http://' + window.location.hostname + ':10090/upload/' + obj['id'],
                 type : 'POST',
                 data : formData,
-                //headers: {'Access-Control-Allow-Origin': 'http://127.0.0.1:9000'},
+                //headers: {'Access-Control-Allow-Origin': 'signinbtn:9000'},
                 crossDomain: true,
                 processData: false,  // tell jQuery not to process the data
                 contentType: false,  // tell jQuery not to set contentType
@@ -229,7 +229,7 @@ function getCookie(cname) {
 
 // DOM operations
 function selectVideo(vid) {
-    var url = 'http://' + window.location.hostname + ':8080/videos/'+ vid
+    var url = 'http://' + window.location.hostname + ':10087/videos/'+ vid
     var video = $("#curr-video");
     $("#curr-video:first-child").attr('src', url);
     $("#curr-video-name").text(currentVideo['name']);
@@ -352,7 +352,7 @@ function htmlVideoListElement(vid, name, ctime) {
 function registerUser(callback) {
     var username = $("#username").val();
     var pwd = $("#pwd").val();
-    var apiUrl = window.location.hostname + ':8080/api';
+    var apiUrl = window.location.hostname + ':10090/api';
 
     if (username == '' || pwd == '') {
         callback(null, err);
@@ -364,7 +364,7 @@ function registerUser(callback) {
     }
 
     var dat = {
-        'url': 'http://'+ window.location.hostname + ':8000/user',
+        'url': 'http://'+ window.location.hostname + ':10087/user',
         'method': 'POST',
         'req_body': JSON.stringify(reqBody)
     };
@@ -373,7 +373,7 @@ function registerUser(callback) {
 
 
     $.ajax({
-        url  : 'http://' + window.location.hostname + ':8080/api',
+        url  : 'http://' + window.location.hostname + ':10090/api',
         type : 'post',
         data : JSON.stringify(dat),
         statusCode: {
@@ -401,7 +401,7 @@ function registerUser(callback) {
 function signinUser(callback) {
     var username = $("#susername").val();
     var pwd = $("#spwd").val();
-    var apiUrl = window.location.hostname + ':8080/api';
+    var apiUrl = window.location.hostname + ':10090/api';
 
     if (username == '' || pwd == '') {
         callback(null, err);
@@ -413,13 +413,13 @@ function signinUser(callback) {
     }
 
     var dat = {
-        'url': 'http://'+ window.location.hostname + ':8000/user/' + username,
+        'url': 'http://'+ window.location.hostname + ':10087/user/' + username,
         'method': 'POST',
         'req_body': JSON.stringify(reqBody)
     };
 
     $.ajax({
-        url  : 'http://' + window.location.hostname + ':8080/api',
+        url  : 'http://' + window.location.hostname + ':10090/api',
         type : 'post',
         data : JSON.stringify(dat),
         statusCode: {
@@ -446,12 +446,12 @@ function signinUser(callback) {
 
 function getUserId(callback) {
     var dat = {
-        'url': 'http://' + window.location.hostname + ':8000/user/' + uname,
+        'url': 'http://' + window.location.hostname + ':10087/user/' + uname,
         'method': 'GET'
     };
 
     $.ajax({
-        url: 'http://' + window.location.hostname + ':8080/api',
+        url: 'http://' + window.location.hostname + ':10090/api',
         type: 'post',
         data: JSON.stringify(dat),
         headers: {'X-Session-Id': session},
@@ -479,13 +479,13 @@ function createVideo(vname, callback) {
     };
 
     var dat = {
-        'url': 'http://' + window.location.hostname + ':8000/user/' + uname + '/videos',
+        'url': 'http://' + window.location.hostname + ':10087/user/' + uname + '/videos',
         'method': 'POST',
         'req_body': JSON.stringify(reqBody)
     };
 
     $.ajax({
-        url  : 'http://' + window.location.hostname + ':8080/api',
+        url  : 'http://' + window.location.hostname + ':10090/api',
         type : 'post',
         data : JSON.stringify(dat),
         headers: {'X-Session-Id': session},
@@ -511,13 +511,13 @@ function createVideo(vname, callback) {
 
 function listAllVideos(callback) {
     var dat = {
-        'url': 'http://' + window.location.hostname + ':8000/user/' + uname + '/videos',
+        'url': 'http://' + window.location.hostname + ':10087/user/' + uname + '/videos',
         'method': 'GET',
         'req_body': ''
     };
 
     $.ajax({
-        url  : 'http://' + window.location.hostname + ':8080/api',
+        url  : 'http://' + window.location.hostname + ':10090/api',
         type : 'post',
         data : JSON.stringify(dat),
         headers: {'X-Session-Id': session},
@@ -543,13 +543,13 @@ function listAllVideos(callback) {
 
 function deleteVideo(vid, callback) {
     var dat = {
-        'url': 'http://' + window.location.hostname + ':8000/user/' + uname + '/videos/' + vid,
+        'url': 'http://' + window.location.hostname + ':10087/user/' + uname + '/videos/' + vid,
         'method': 'DELETE',
         'req_body': ''
     };
 
     $.ajax({
-        url  : 'http://' + window.location.hostname + ':8080/api',
+        url  : 'http://' + window.location.hostname + ':10090/api',
         type : 'post',
         data : JSON.stringify(dat),
         headers: {'X-Session-Id': session},
@@ -582,13 +582,13 @@ function postComment(vid, content, callback) {
 
 
     var dat = {
-        'url': 'http://' + window.location.hostname + ':8000/videos/' + vid + '/comments',
+        'url': 'http://' + window.location.hostname + ':10087/videos/' + vid + '/comments',
         'method': 'POST',
         'req_body': JSON.stringify(reqBody)
     };
 
     $.ajax({
-        url  : 'http://' + window.location.hostname + ':8080/api',
+        url  : 'http://' + window.location.hostname + ':10090/api',
         type : 'post',
         data : JSON.stringify(dat),
         headers: {'X-Session-Id': session},
@@ -614,13 +614,13 @@ function postComment(vid, content, callback) {
 
 function listAllComments(vid, callback) {
     var dat = {
-        'url': 'http://' + window.location.hostname + ':8000/videos/' + vid + '/comments',
+        'url': 'http://' + window.location.hostname + ':10087/videos/' + vid + '/comments',
         'method': 'GET',
         'req_body': ''
     };
 
     $.ajax({
-        url  : 'http://' + window.location.hostname + ':8080/api',
+        url  : 'http://' + window.location.hostname + ':10090/api',
         type : 'post',
         data : JSON.stringify(dat),
         headers: {'X-Session-Id': session},

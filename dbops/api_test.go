@@ -3,6 +3,7 @@ package dbops
 import (
 	"database/sql"
 	"testing"
+	"time"
 )
 
 var videoID string
@@ -16,6 +17,7 @@ func TruncAllTables() {
 	// conn.Exec("truncate sessions")
 }
 func TestMain(m *testing.M) {
+	TruncAllTables()
 	m.Run()
 	TruncAllTables()
 }
@@ -83,7 +85,6 @@ func TestGetVideoInfo(t *testing.T) {
 			t.Errorf("get error id, expect:%s, but get：%s", videoID, vi.Id)
 		}
 	}
-
 }
 
 func TestDelVideoInfo(t *testing.T) {
@@ -112,10 +113,22 @@ func TestAddComment(t *testing.T) {
 	if err != nil {
 		t.Errorf("%v", err)
 	}
+	comments, err := GetComments(videoID, 0, GetTimeStamp())
+	if err != nil {
+		t.Errorf("Get Comments failed %v", err)
+	}
+	time.Sleep(6 * time.Second)
+	for _, v := range comments {
+		if v.VideoId == videoID {
+			commentId = v.Id
+			return
+		}
+	}
+	t.Errorf("add Comments failed, can't find comment we add")
 }
 
 func TestGetComment(t *testing.T) {
-	comment, err := GetComments(commentId)
+	comment, err := GetComment(commentId)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -134,7 +147,7 @@ func TestDelComment(t *testing.T) {
 	if err != nil {
 		t.Errorf("%v", err)
 	}
-	vi, err := GetComments(commentId)
+	vi, err := GetComment(commentId)
 	if vi != nil || err != nil {
 		t.Errorf("fail to delete, err: %v", err)
 	}

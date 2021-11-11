@@ -53,6 +53,7 @@ func login(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	pwd, err := dbops.GetUserCredential(uBody.UserName)
 	if err != nil || len(pwd) == 0 || pwd != uBody.Pwd {
 		SendErrorResponse(w, entity.ErrorNotAuthUser)
+		return
 	}
 
 	id := session.GenerateNewSessionId(uBody.UserName)
@@ -79,7 +80,6 @@ func getUserInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	}
 
 	userInfo := entity.UserInfo{Id: user.Id}
-
 	if resp, err := json.Marshal(userInfo); err != nil {
 		SendErrorResponse(w, entity.ErrorInternalFaults)
 	} else {
@@ -94,8 +94,8 @@ func listVideos(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 
 	uname := p.ByName("username")
 
-	ts, err := dbops.GetTimeStamp()
-	if err != nil {
+	ts := dbops.GetTimeStamp()
+	if ts == 0 {
 		log.Printf("Get timestamp failed.")
 		return
 	}
@@ -165,8 +165,8 @@ func getComments(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	}
 
 	vid := p.ByName("vid-id")
-	ts, err := dbops.GetTimeStamp()
-	if err != nil {
+	ts := dbops.GetTimeStamp()
+	if ts == 0 {
 		log.Printf("Get timestamp failed.")
 		return
 	}

@@ -7,13 +7,9 @@ github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfn
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
-github.com/lixiandea/video_server/dbops v0.0.0-20211028101928-3af935eae33d h1:mGwmsYFYjE4YXPA3WVLo39kT/2CMnVFvRBYaMcEXRGU=
-github.com/lixiandea/video_server/dbops v0.0.0-20211028101928-3af935eae33d/go.mod h1:CZinWHOFc2ja2vYjN3fdiYF2Jt+DD0vPnSCS7YVvCMo=
-github.com/lixiandea/video_server/entity v0.0.0-20211028101928-3af935eae33d/go.mod h1:jFJrYSmpOOmvLL+cTt9dGMAxtm/b/CAoiMylpfVoy2Q=
-github.com/lixiandea/video_server/entity v0.0.0-20211107142625-9324bc0eb0d1 h1:yCv0m6A15aa+/2+A8QJ0pstDlkGBbYWspPtdu/AhQHE=
 github.com/lixiandea/video_server/entity v0.0.0-20211107142625-9324bc0eb0d1/go.mod h1:jFJrYSmpOOmvLL+cTt9dGMAxtm/b/CAoiMylpfVoy2Q=
-github.com/lixiandea/video_server/user_service v0.0.0-20211107142625-9324bc0eb0d1 h1:au4PfH2lDP7ROvJxbFyC7X5ZIQfiMSdiOcrHCpQXW3g=
-github.com/lixiandea/video_server/user_service v0.0.0-20211107142625-9324bc0eb0d1/go.mod h1:uR/mV+Ju1w25ctw97DC6NS/OC22NUmu0A2P++ol/8m8=
+github.com/lixiandea/video_server/entity v0.0.0-20211108171907-7591bb14b15f h1:GxE8Y31hCpJ8izOyFfg0rTV5l/o9hD6X+Vy+fkrcf9w=
+github.com/lixiandea/video_server/entity v0.0.0-20211108171907-7591bb14b15f/go.mod h1:jFJrYSmpOOmvLL+cTt9dGMAxtm/b/CAoiMylpfVoy2Q=
 github.com/satori/go.uuid v1.2.0 h1:0uYX9dsZ2yD7q2RtLRtPSdGDWzjeM3TbMJP9utgA0ww=
 github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=

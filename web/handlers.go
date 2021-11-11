@@ -55,7 +55,7 @@ func userHomeHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params
 		u = &UserPage{Name: fname}
 	}
 
-	t, err := template.ParseFiles("./template/userHome.html")
+	t, err := template.ParseFiles("../template/userHome.html")
 	if err != nil {
 		log.Printf("parse user home html file failed: %v", err)
 		return
@@ -68,7 +68,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	sid, err2 := r.Cookie("session")
 	if err1 != nil || err2 != nil {
 		h := &HomePage{Name: "lixiande"}
-		t, err := template.ParseFiles("./template/home.html")
+		t, err := template.ParseFiles("../template/home.html")
 		if err != nil {
 			log.Printf("parse home html file failed: %v", err)
 			return
@@ -96,8 +96,8 @@ func RegisterHandlers() *httprouter.Router {
 	router.POST("/userhome", userHomeHandler)
 	router.POST("/api", apiHandler)
 	//static file bind
-	router.ServeFiles("/statics/*filepath", http.Dir("./template"))
+	router.ServeFiles("/statics/*filepath", http.Dir("../template"))
 
-	router.POST("/vedio/:vid", proxyHandler)
+	router.POST("/video/:vid", proxyHandler)
 	return router
 }

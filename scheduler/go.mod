@@ -9,4 +9,7 @@ require (
 
 replace (
 	github.com/lixiandea/video_server/dbops => ../dbops
+	github.com/lixiandea/video_server/entity => ../entity
+	github.com/lixiandea/video_server/streaming => ../streaming
+	github.com/lixiandea/video_server/user_service => ../user_service
 )

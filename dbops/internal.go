@@ -11,7 +11,7 @@ import (
 func InsertSession(sid string, ttl int64, userName string) error {
 	ttlstr := strconv.FormatInt(ttl, 10)
 
-	smtmIns, err := conn.Prepare("INSERT INTO sessions (session_id, TTL, login_name) VALUSE(?,?,?)")
+	smtmIns, err := conn.Prepare("INSERT INTO sessions (session_id, TTL, login_name) VALUES (?,?,?)")
 
 	if err != nil {
 		return err
