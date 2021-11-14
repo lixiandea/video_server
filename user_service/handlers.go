@@ -20,7 +20,7 @@ func createUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		SendErrorResponse(w, entity.ErrorRequestBodyParseFailed)
 		return
 	}
-
+	// front do empty password check
 	if err := dbops.AddUserCredential(ubody.UserName, ubody.Pwd); err != nil {
 		SendErrorResponse(w, entity.ErrorDBError)
 	}
@@ -69,6 +69,7 @@ func login(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 func getUserInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	if !ValidateUser(w, r) {
 		log.Printf("UnAuthorized user.")
+		return
 	}
 
 	uname := p.ByName("username")

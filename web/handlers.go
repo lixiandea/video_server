@@ -26,13 +26,15 @@ func apiHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		user_service.SendErrorResponse(w, entity.ErrorMethodError)
 		return
 	}
-
+	//log.Println("get api request")
 	res, _ := ioutil.ReadAll(r.Body)
 	apiBody := &ApiBody{}
 	if err := json.Unmarshal(res, apiBody); err != nil {
+		log.Printf("parse err:%v", err)
 		user_service.SendErrorResponse(w, entity.ErrorRequestBodyParseFailed)
 		return
 	}
+
 	request(w, r, apiBody)
 	defer r.Body.Close()
 }
@@ -55,7 +57,7 @@ func userHomeHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params
 		u = &UserPage{Name: fname}
 	}
 
-	t, err := template.ParseFiles("../template/userHome.html")
+	t, err := template.ParseFiles("../template/userhome.html")
 	if err != nil {
 		log.Printf("parse user home html file failed: %v", err)
 		return
