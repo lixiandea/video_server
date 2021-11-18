@@ -360,7 +360,7 @@ function registerUser(callback) {
 
     var reqBody = {
         'user_name': username,
-        'pwd': pwd
+        'password': pwd
     }
 
     var dat = {
@@ -409,7 +409,7 @@ function signinUser(callback) {
 
     var reqBody = {
         'user_name': username,
-        'pwd': pwd
+        'password': pwd
     }
 
     var dat = {

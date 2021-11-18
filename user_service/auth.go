@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-var HEADER_FIELD_SESSION = "X_Session-Id"
+var HEADER_FIELD_SESSION = "X-Session-Id"
 
 var HEADER_FIELD_UNAME = "X-USER-Name"
 
@@ -32,5 +32,6 @@ func ValidateUser(w http.ResponseWriter, r *http.Request) bool {
 		SendErrorResponse(w, entity.ErrorRequestBodyParseFailed)
 		return false
 	}
+
 	return true
 }

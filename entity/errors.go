@@ -49,7 +49,7 @@ var (
 		},
 	}
 	ErrorNotAuthUser = ErrResponse{
-		HttpSc: http.StatusNonAuthoritativeInfo,
+		HttpSc: http.StatusUnauthorized,
 		Error: Err{
 			Error:     "Username not compatible,check your name and password.",
 			ErrorCode: "006",
