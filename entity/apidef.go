@@ -17,7 +17,7 @@ type User struct {
 }
 
 type UserInfo struct {
-	Id int
+	Id int `json:"id"`
 }
 
 type VideoInfo struct {

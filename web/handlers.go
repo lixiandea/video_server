@@ -84,7 +84,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	}
 }
 func proxyHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	u, _ := url.Parse("http://127.0.0.1:10087")
+	u, _ := url.Parse("http://127.0.0.1:10088")
 	proxy := httputil.NewSingleHostReverseProxy(u)
 	proxy.ServeHTTP(w, r)
 }

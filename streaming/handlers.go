@@ -71,7 +71,7 @@ func testPageHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params
 func RegisteryHandlers() *httprouter.Router {
 	router := httprouter.New()
 	router.GET("/videos/:vid-id", getVideoHandler)
-	router.POST("/upload/:vid-id", uploadVideoHandler)
+	router.POST("/video/:vid-id", uploadVideoHandler)
 	router.GET("/video/testpage", testPageHandler)
 	return router
 }

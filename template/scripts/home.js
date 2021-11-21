@@ -131,7 +131,7 @@ $(document).ready(function() {
             formData.append('file', $('#inputFile')[0].files[0]);
 
             $.ajax({
-                url : 'http://' + window.location.hostname + ':10090/upload/' + obj['id'],
+                url : 'http://' + window.location.hostname + ':10090/video/' + obj['Id'],
                 type : 'POST',
                 data : formData,
                 //headers: {'Access-Control-Allow-Origin': 'signinbtn:9000'},
@@ -186,7 +186,7 @@ function initPage(callback) {
         }
 
         var obj = JSON.parse(res);
-        uid = obj['id'];
+        uid = obj['Id'];
         //window.alert(obj['id']);
         listAllVideos(function(res, err) {
             if (err != null) {

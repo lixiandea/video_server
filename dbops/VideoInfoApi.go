@@ -65,17 +65,16 @@ func GetVideoInfo(vid string) (*entity.VideoInfo, error) {
 	return &entity.VideoInfo{Id: vid, AuthorId: author_id, Name: name, DisplayTime: display_ctime}, err
 }
 
-func GetVideoInfos(uname string, from, to int)  ([]*entity.VideoInfo, error) {
-	stmtOut, err:=conn.Prepare(`SELECT video_info.id, video_info.author_id, video_info.name, video_info.display_ctime FROM video_info
+func GetVideoInfos(uname string, from, to int) ([]*entity.VideoInfo, error) {
+	stmtOut, err := conn.Prepare(`SELECT video_info.id, video_info.author_id, video_info.name, video_info.display_ctime FROM video_info
 		INNER JOIN users ON video_info.author_id = users.id
-		WHERE users.login_name=? AND video_info.create_time > FROM_UNIXTIME(?) AND video_info.create_time<=FROM_UNIXTIME(?)
-		OREDER BY video_info.create_time DESC`)
+		WHERE users.login_name=? `)
 	var res []*entity.VideoInfo
-	if err!=nil{
+	if err != nil {
 		return res, err
 	}
-	rows, err:=stmtOut.Query(uname, from, to)
-	if err!=nil {
+	rows, err := stmtOut.Query(uname)
+	if err != nil {
 		log.Printf("%s", err)
 		return res, err
 	}
@@ -83,10 +82,10 @@ func GetVideoInfos(uname string, from, to int)  ([]*entity.VideoInfo, error) {
 	for rows.Next() {
 		var id, name, ctime string
 		var aid int
-		if err:=rows.Scan(&id, &aid, &name, &ctime); err!=nil{
+		if err := rows.Scan(&id, &aid, &name, &ctime); err != nil {
 			return res, err
 		}
-		vi:=&entity.VideoInfo{Id:id, AuthorId:aid, Name:name, DisplayTime: ctime}
+		vi := &entity.VideoInfo{Id: id, AuthorId: aid, Name: name, DisplayTime: ctime}
 		res = append(res, vi)
 	}
 	defer stmtOut.Close()
