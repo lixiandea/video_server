@@ -11,9 +11,9 @@ type NewVideo struct {
 }
 
 type User struct {
-	Id        int
-	LoginName string
-	Pwd       string
+	Id        int    `json:"id"`
+	LoginName string `json:"login_name"`
+	Pwd       string `json:"pwd"`
 }
 
 type UserInfo struct {
@@ -21,28 +21,28 @@ type UserInfo struct {
 }
 
 type VideoInfo struct {
-	Id          string
-	AuthorId    int
-	Name        string
-	DisplayTime string
-	CreateTime  string
+	Id          string `json:"id"`
+	AuthorId    int    `json:"author_id"`
+	Name        string `json:"name"`
+	DisplayTime string `json:"display_time"`
+	CreateTime  string `json:"create_time"`
 }
 
 type VideosInfo struct {
-	Videos []*VideoInfo
+	Videos []*VideoInfo `json:"videos"`
 }
 type Comment struct {
-	Id       string
-	AuthorId int
-	VideoId  string
-	Content  string
-	Ctime    string
+	Id       string `json:"id"`
+	AuthorId int    `json:"author_id"`
+	VideoId  string `json:"video_id"`
+	Content  string `json:"content"`
+	Ctime    string `json:"ctime"`
 }
 
 type Comments struct {
-	Comments []*Comment
+	Comments []*Comment `json:"comments"`
 }
 type SimpleSession struct {
-	UserName string
-	TTL      int64
+	UserName string `json:"user_name"`
+	TTL      int64  `json:"ttl"`
 }

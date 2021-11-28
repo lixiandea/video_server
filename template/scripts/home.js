@@ -186,7 +186,7 @@ function initPage(callback) {
         }
 
         var obj = JSON.parse(res);
-        uid = obj['Id'];
+        uid = obj['id'];
         //window.alert(obj['id']);
         listAllVideos(function(res, err) {
             if (err != null) {
@@ -195,7 +195,7 @@ function initPage(callback) {
                 return;
             }
             var obj = JSON.parse(res);
-            listedVideos = obj['videos'];
+            listedVideos = obj['Videos'];
             obj['videos'].forEach(function(item, index) {
                 var ele = htmlVideoListElement(item['id'], item['name'], item['display_ctime']);
                 $("#items").append(ele);
