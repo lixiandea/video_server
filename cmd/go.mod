@@ -13,4 +13,5 @@ replace (
 	github.com/lixiandea/video_server/entity => ../entity
 	github.com/lixiandea/video_server/streaming => ../streaming
 	github.com/lixiandea/video_server/user_service => ../user_service
+	github.com/lixiandea/video_server/scheduler => ../scheduler
 )

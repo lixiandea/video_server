@@ -31,7 +31,8 @@ func uploadVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Par
 		return
 	}
 	fn := p.ByName("vid-id")
-	err = ioutil.WriteFile(entity.VIDEO_DIR+fn, data, 0666) // path, data, chmod
+	log.Printf("save path：%v / %v", entity.VIDEO_DIR, fn)
+	err = ioutil.WriteFile("E:/video_server/cmd/out/videos/"+fn, data, 0666) // path, data, chmod
 	if err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "写文件错误")
 		return
@@ -50,7 +51,7 @@ func getVideoHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params
 		return
 	}
 
-	w.Header().Set("Cotent-Type", "video/mp4")
+	w.Header().Set("Content-Type", "video/mp4")
 	http.ServeContent(w, r, "", time.Now(), video)
 
 }
@@ -71,7 +72,7 @@ func testPageHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params
 func RegisteryHandlers() *httprouter.Router {
 	router := httprouter.New()
 	router.GET("/videos/:vid-id", getVideoHandler)
-	router.POST("/video/:vid-id", uploadVideoHandler)
+	router.POST("/upload/:vid-id", uploadVideoHandler)
 	router.GET("/video/testpage", testPageHandler)
 	return router
 }

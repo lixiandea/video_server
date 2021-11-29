@@ -131,7 +131,7 @@ $(document).ready(function() {
             formData.append('file', $('#inputFile')[0].files[0]);
 
             $.ajax({
-                url : 'http://' + window.location.hostname + ':10090/video/' + obj['Id'],
+                url : 'http://' + window.location.hostname + ':10090/upload/' + obj['id'],
                 type : 'POST',
                 data : formData,
                 //headers: {'Access-Control-Allow-Origin': 'signinbtn:9000'},
@@ -195,7 +195,7 @@ function initPage(callback) {
                 return;
             }
             var obj = JSON.parse(res);
-            listedVideos = obj['Videos'];
+            listedVideos = obj['videos'];
             obj['videos'].forEach(function(item, index) {
                 var ele = htmlVideoListElement(item['id'], item['name'], item['display_ctime']);
                 $("#items").append(ele);
@@ -229,7 +229,7 @@ function getCookie(cname) {
 
 // DOM operations
 function selectVideo(vid) {
-    var url = 'http://' + window.location.hostname + ':10087/videos/'+ vid
+    var url = 'http://' + window.location.hostname + ':10088/videos/'+ vid
     var video = $("#curr-video");
     $("#curr-video:first-child").attr('src', url);
     $("#curr-video-name").text(currentVideo['name']);

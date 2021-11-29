@@ -100,6 +100,6 @@ func RegisterHandlers() *httprouter.Router {
 	//static file bind
 	router.ServeFiles("/statics/*filepath", http.Dir("../template"))
 
-	router.POST("/video/:vid", proxyHandler)
+	router.POST("/upload/:vid", proxyHandler)
 	return router
 }

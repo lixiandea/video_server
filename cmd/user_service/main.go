@@ -9,7 +9,7 @@ import (
 func main() {
 	r := user_service.RegisteryHandlers()
 	// mh := NewMiddleware(r)
-	log.Printf("streaming listen to 10087")
+	log.Printf("user_service listen to 10087")
 	http.ListenAndServe(":10087", r)
 }
 

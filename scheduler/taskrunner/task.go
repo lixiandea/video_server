@@ -3,13 +3,14 @@ package taskrunner
 import (
 	"errors"
 	"github.com/lixiandea/video_server/dbops"
+	"github.com/lixiandea/video_server/entity"
 	"log"
 	"os"
 	"sync"
 )
 
 func deleteVideo(vid string) error {
-	err := os.Remove(VIDEO_PATH + vid)
+	err := os.Remove(entity.VIDEO_DIR + vid)
 	if err != nil && !os.IsNotExist(err) {
 		log.Printf("error delete files")
 		return err
