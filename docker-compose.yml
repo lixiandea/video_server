@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: video_server_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: Cz05180921.
+      MYSQL_DATABASE: video_server
+      MYSQL_USER: video_user
+      MYSQL_PASSWORD: video_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - video_network
+
+  redis:
+    image: redis:alpine
+    container_name: video_server_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - video_network
+
+  api-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.apiserver
+    container_name: video_server_api
+    restart: always
+    depends_on:
+      - mysql
+      - redis
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=video_user
+      - DB_PASSWORD=video_password
+      - DB_NAME=video_server
+      - REDIS_ADDR=redis:6379
+    networks:
+      - video_network
+    volumes:
+      - ./storage:/app/storage
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.scheduler
+    container_name: video_server_scheduler
+    restart: always
+    depends_on:
+      - mysql
+    ports:
+      - "8089:8089"
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=video_user
+      - DB_PASSWORD=video_password
+      - DB_NAME=video_server
+    networks:
+      - video_network
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: video_server_worker
+    restart: always
+    depends_on:
+      - mysql
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=video_user
+      - DB_PASSWORD=video_password
+      - DB_NAME=video_server
+    networks:
+      - video_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: video_server_frontend
+    restart: always
+    depends_on:
+      - api-server
+    ports:
+      - "3000:3000"
+    networks:
+      - video_network
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  video_network:
+    driver: bridge

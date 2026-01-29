@@ -1,0 +1,17 @@
+# Frontend server Dockerfile
+FROM golang:1.21-alpine
+
+WORKDIR /app
+
+# Copy the frontend server code
+COPY frontend/server.go .
+
+# Build the frontend server
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o frontend-server server.go
+
+# Copy the frontend files
+COPY frontend/ ./frontend/
+
+EXPOSE 3000
+
+CMD ["./frontend-server"]
