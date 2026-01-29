@@ -1,0 +1,19 @@
+server:
+  port: "8080"
+  mode: "debug"  # debug, release, test
+  read_timeout: 30  # seconds
+  write_timeout: 30  # seconds
+  max_file_size: 52428800  # 50MB in bytes
+
+database:
+  host: "localhost"  # Will be overwritten by environment variable in Docker
+  port: 3306
+  user: "root"
+  password: "Cz05180921."
+  name: "video_server"
+  charset: "utf8mb4"
+
+storage:
+  video_dir: "./storage/videos/"
+  template_dir: "./templates/"
+  temp_dir: "./storage/temp/"
