@@ -14,15 +14,15 @@ type BaseModel struct {
 
 type User struct {
     BaseModel
-    LoginName string  `gorm:"uniqueIndex;not null" json:"login_name"`
-    Pwd       string  `gorm:"not null" json:"pwd"`
-    Sessions  []Session `json:"-"` // One-to-many relationship
-    Videos    []Video `json:"-"`   // One-to-many relationship
+    LoginName string      `gorm:"uniqueIndex;not null;type:varchar(255)" json:"login_name"`
+    Pwd       string      `gorm:"not null" json:"pwd"`
+    Sessions  []Session   `json:"-"` // One-to-many relationship
+    Videos    []Video     `gorm:"foreignKey:AuthorID" json:"-"`   // One-to-many relationship
 }
 
 type Video struct {
     BaseModel
-    UUID       string    `gorm:"uniqueIndex;not null" json:"uuid"`
+    UUID       string    `gorm:"uniqueIndex;not null;type:varchar(255)" json:"uuid"`
     AuthorID   uint      `gorm:"not null" json:"author_id"`
     Name       string    `gorm:"not null" json:"name"`
     FilePath   string    `gorm:"not null" json:"file_path"`
@@ -36,25 +36,24 @@ type Video struct {
 
 type Comment struct {
     BaseModel
-    UUID     string `gorm:"uniqueIndex;not null" json:"id"`
+    UUID     string `gorm:"uniqueIndex;not null;type:varchar(255)" json:"id"`
     AuthorID uint   `gorm:"not null" json:"author_id"`
     VideoID  uint   `gorm:"not null" json:"video_id"`
     Content  string `gorm:"not null" json:"content"`
     Ctime    string `json:"ctime"`
-    Author   User   `gorm:"foreignKey:AuthorID" json:"-"`
-    Video    Video  `gorm:"foreignKey:VideoID" json:"-"`
+    Author   User   `json:"-"`
+    Video    Video  `json:"-"`
 }
 
 type Session struct {
     BaseModel
-    UUID      string `gorm:"uniqueIndex;not null" json:"uuid"`
+    UUID      string `gorm:"uniqueIndex;not null;type:varchar(255)" json:"uuid"`
     UserID    uint   `gorm:"not null" json:"user_id"`
     TTL       int64  `json:"ttl"`
-    User      User   `gorm:"foreignKey:UserID" json:"-"`
 }
 
 type VideoDeletionRecord struct {
     BaseModel
-    VideoUUID string `gorm:"uniqueIndex;not null" json:"video_uuid"`
+    VideoUUID string `gorm:"uniqueIndex;not null;type:varchar(255)" json:"video_uuid"`
     Reason    string `json:"reason,omitempty"`
 }

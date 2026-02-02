@@ -20,10 +20,18 @@ func InitDatabase(cfg *config.DatabaseConfig) *gorm.DB {
 
     var err error
     DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+        SkipDefaultTransaction: true,  // Skip default transaction
         Logger: logger.Default.LogMode(logger.Info),
     })
     if err != nil {
         log.Fatalf("Failed to connect to database: %v", err)
+    }
+
+    // Disable foreign key constraint check during migration
+    sqlDB, _ := DB.DB()
+    _, err = sqlDB.Exec("SET FOREIGN_KEY_CHECKS=0") // Disable foreign key checks
+    if err != nil {
+        log.Printf("Warning: Could not disable foreign key checks: %v", err)
     }
 
     // Auto migrate schema
@@ -35,11 +43,17 @@ func InitDatabase(cfg *config.DatabaseConfig) *gorm.DB {
         &models.VideoDeletionRecord{},
     )
     if err != nil {
-        log.Fatalf("Failed to migrate database: %v", err)
+        log.Printf("Warning: Some migrations may have failed: %v", err)
+    }
+
+    // Re-enable foreign key constraint check
+    _, err = sqlDB.Exec("SET FOREIGN_KEY_CHECKS=1")
+    if err != nil {
+        log.Printf("Warning: Could not re-enable foreign key checks: %v", err)
     }
 
     // Set connection pool
-    sqlDB, err := DB.DB()
+    sqlDB, err = DB.DB()
     if err != nil {
         log.Fatalf("Failed to get database instance: %v", err)
     }

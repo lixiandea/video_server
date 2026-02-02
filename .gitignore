@@ -3,3 +3,8 @@
 *.mp4
 .vscode*
 .vscode
+# Binary files
+bin/
+*.out
+*.bin
+.DS_Store
