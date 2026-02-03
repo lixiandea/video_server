@@ -9,11 +9,12 @@ import (
     "github.com/lixiandea/video_server/internal/services"
     "github.com/lixiandea/video_server/pkg/database"
     "github.com/lixiandea/video_server/pkg/storage"
+    "github.com/spf13/viper"
 )
 
 func main() {
-    // Load configuration
-    cfg := config.LoadConfig()
+    // 加载调度器专用配置
+    cfg := loadSchedulerConfig()
     
     // Initialize database
     database.InitDatabase(&cfg.Database)
@@ -53,6 +54,25 @@ func main() {
     if err := r.Run(":" + cfg.Server.Port); err != nil {
         log.Fatal("Failed to start scheduler: ", err)
     }
+}
+
+// 加载调度器专用配置
+func loadSchedulerConfig() *config.Config {
+    // 设置调度器专用配置
+    viper.SetConfigName("config-scheduler")
+    viper.SetConfigType("yaml")
+    viper.AddConfigPath(".")
+    
+    if err := viper.ReadInConfig(); err != nil {
+        log.Printf("Scheduler config file not found, using defaults: %v", err)
+    }
+
+    var config config.Config
+    if err := viper.Unmarshal(&config); err != nil {
+        log.Fatalf("Unable to decode scheduler config into struct: %v", err)
+    }
+
+    return &config
 }
 
 func startCleanupWorker(videoService *services.VideoService, storageService *storage.StorageService) {

@@ -16,8 +16,6 @@ type User struct {
     BaseModel
     LoginName string      `gorm:"uniqueIndex;not null;type:varchar(255)" json:"login_name"`
     Pwd       string      `gorm:"not null" json:"pwd"`
-    Sessions  []Session   `json:"-"` // One-to-many relationship
-    Videos    []Video     `gorm:"foreignKey:AuthorID" json:"-"`   // One-to-many relationship
 }
 
 type Video struct {
@@ -30,8 +28,6 @@ type Video struct {
     Duration   float64   `json:"duration"` // in seconds
     Status     string    `gorm:"default:active" json:"status"` // active, deleted, processing
     DisplayCTime string  `json:"display_ctime"`
-    Author     User      `gorm:"foreignKey:AuthorID" json:"-"`
-    Comments   []Comment `json:"-"` // One-to-many relationship
 }
 
 type Comment struct {
@@ -41,8 +37,6 @@ type Comment struct {
     VideoID  uint   `gorm:"not null" json:"video_id"`
     Content  string `gorm:"not null" json:"content"`
     Ctime    string `json:"ctime"`
-    Author   User   `json:"-"`
-    Video    Video  `json:"-"`
 }
 
 type Session struct {

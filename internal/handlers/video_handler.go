@@ -124,11 +124,18 @@ func (h *VideoHandler) GetVideoInfo(c *gin.Context) {
         return
     }
 
+    // 获取作者信息
+    author, err := h.videoService.GetUserByID(video.AuthorID)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video author"})
+        return
+    }
+
     c.JSON(http.StatusOK, gin.H{
         "video_id":     video.UUID,
         "name":        video.Name,
         "author_id":   video.AuthorID,
-        "author_name": video.Author.LoginName,
+        "author_name": author.LoginName,
         "display_time": video.DisplayCTime,
         "size":        video.Size,
         "status":      video.Status,
@@ -168,9 +175,17 @@ func (h *VideoHandler) GetUserVideos(c *gin.Context) {
     // Convert to response format
     videoList := make([]map[string]interface{}, len(videos))
     for i, video := range videos {
+        // 获取作者信息
+        author, err := h.videoService.GetUserByID(video.AuthorID)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get video author"})
+            return
+        }
+
         videoList[i] = map[string]interface{}{
             "video_id":     video.UUID,
             "name":        video.Name,
+            "author_name": author.LoginName,
             "display_time": video.DisplayCTime,
             "size":        video.Size,
             "status":      video.Status,

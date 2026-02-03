@@ -43,7 +43,7 @@ func (s *CommentService) AddComment(videoID, authorID uint, content string) (*mo
 
 func (s *CommentService) GetCommentByID(commentID string) (*models.Comment, error) {
     var comment models.Comment
-    result := s.db.Preload("Author").Preload("Video").First(&comment, "uuid = ?", commentID)
+    result := s.db.First(&comment, "uuid = ?", commentID)
     if errors.Is(result.Error, gorm.ErrRecordNotFound) {
         return nil, fmt.Errorf("comment not found")
     }
@@ -56,8 +56,7 @@ func (s *CommentService) GetCommentByID(commentID string) (*models.Comment, erro
 
 func (s *CommentService) GetCommentsByVideoID(videoID uint, limit, offset int) ([]*models.Comment, error) {
     var comments []*models.Comment
-    result := s.db.Preload("Author").
-        Where("video_id = ?", videoID).
+    result := s.db.Where("video_id = ?", videoID).
         Limit(limit).Offset(offset).
         Order("created_at ASC").
         Find(&comments)
@@ -88,4 +87,18 @@ func (s *CommentService) DeleteComment(commentID string) error {
     }
 
     return nil
+}
+
+// 根据用户ID获取用户信息
+func (s *CommentService) GetUserByID(userID uint) (*models.User, error) {
+    var user models.User
+    result := s.db.First(&user, "id = ?", userID)
+    if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+        return nil, fmt.Errorf("user not found")
+    }
+    if result.Error != nil {
+        return nil, fmt.Errorf("database error: %w", result.Error)
+    }
+
+    return &user, nil
 }

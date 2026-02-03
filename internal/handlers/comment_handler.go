@@ -118,10 +118,17 @@ func (h *CommentHandler) GetComments(c *gin.Context) {
     // Convert to response format
     commentList := make([]map[string]interface{}, len(comments))
     for i, comment := range comments {
+        // 获取作者信息
+        author, err := h.commentService.GetUserByID(comment.AuthorID)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get comment author"})
+            return
+        }
+
         commentList[i] = map[string]interface{}{
             "comment_id": comment.UUID,
             "author_id":  comment.AuthorID,
-            "author_name": comment.Author.LoginName,
+            "author_name": author.LoginName,
             "content":    comment.Content,
             "created_at": comment.CreatedAt,
         }
@@ -144,11 +151,18 @@ func (h *CommentHandler) GetComment(c *gin.Context) {
         return
     }
 
+    // 获取作者信息
+    author, err := h.commentService.GetUserByID(comment.AuthorID)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get comment author"})
+        return
+    }
+
     c.JSON(http.StatusOK, gin.H{
         "comment_id": comment.UUID,
         "video_id":   comment.VideoID,
         "author_id":  comment.AuthorID,
-        "author_name": comment.Author.LoginName,
+        "author_name": author.LoginName,
         "content":    comment.Content,
         "created_at": comment.CreatedAt,
     })

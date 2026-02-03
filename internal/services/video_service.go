@@ -43,7 +43,7 @@ func (s *VideoService) CreateVideo(authorID uint, name string) (*models.Video, e
 
 func (s *VideoService) GetVideoByID(videoID string) (*models.Video, error) {
     var video models.Video
-    result := s.db.Preload("Author").First(&video, "uuid = ?", videoID)
+    result := s.db.First(&video, "uuid = ?", videoID)
     if errors.Is(result.Error, gorm.ErrRecordNotFound) {
         return nil, fmt.Errorf("video not found")
     }
@@ -56,8 +56,7 @@ func (s *VideoService) GetVideoByID(videoID string) (*models.Video, error) {
 
 func (s *VideoService) GetVideosByUserID(userID uint, limit, offset int) ([]*models.Video, error) {
     var videos []*models.Video
-    result := s.db.Preload("Author").
-        Where("author_id = ?", userID).
+    result := s.db.Where("author_id = ?", userID).
         Limit(limit).Offset(offset).
         Order("created_at DESC").
         Find(&videos)
@@ -133,4 +132,18 @@ func (s *VideoService) RemoveDeletionRecord(videoID string) error {
     }
 
     return nil
+}
+
+// 根据用户ID获取用户信息
+func (s *VideoService) GetUserByID(userID uint) (*models.User, error) {
+    var user models.User
+    result := s.db.First(&user, "id = ?", userID)
+    if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+        return nil, fmt.Errorf("user not found")
+    }
+    if result.Error != nil {
+        return nil, fmt.Errorf("database error: %w", result.Error)
+    }
+
+    return &user, nil
 }
