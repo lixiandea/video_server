@@ -1,0 +1,45 @@
+{
+  "name": "video-website-ssr",
+  "version": "1.0.0",
+  "description": "Video website with Vue SSR",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "webpack --config webpack.client.js",
+    "build:server": "webpack --config webpack.server.js",
+    "start": "NODE_ENV=production node server.js"
+  },
+  "keywords": [
+    "vue",
+    "ssr",
+    "video",
+    "website"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@vue/server-renderer": "^3.5.27",
+    "axios": "^1.13.4",
+    "compression": "^1.8.1",
+    "express": "^4.22.1",
+    "vue": "^3.3.4",
+    "vue-router": "^4.2.4",
+    "vuex": "^4.1.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.22.11",
+    "@babel/preset-env": "^7.22.14",
+    "@vitejs/plugin-vue": "^6.0.4",
+    "@vue/compiler-sfc": "^3.3.4",
+    "babel-loader": "^9.1.3",
+    "css-loader": "^6.8.1",
+    "file-loader": "^6.2.0",
+    "vite": "^7.3.1",
+    "vue-loader": "^17.2.2",
+    "vue-style-loader": "^4.1.3",
+    "webpack": "^5.88.2",
+    "webpack-cli": "^5.1.4",
+    "webpack-node-externals": "^3.0.0"
+  }
+}

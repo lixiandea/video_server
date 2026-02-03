@@ -7,4 +7,4 @@
 bin/
 *.out
 *.bin
-.DS_Store
+.DS_Storefrontend-vue/node_modules/
