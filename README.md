@@ -333,9 +333,48 @@ MySQL 会在启动时自动执行 [docker/mysql/init.sql](/Users/lixiande/projec
 - `sessions`: 会话表
 - `video_del_rec`: 视频删除记录表
 
-## 前端测试界面
+## 自动化测试
 
-项目包含简单的前端测试界面，用于验证 API 功能。
+项目包含完整的自动化测试流程，可在本地和CI/CD环境中运行。
+
+### 本地测试
+
+使用提供的测试脚本运行完整功能测试：
+
+```bash
+# 给测试脚本添加执行权限
+chmod +x test-api.sh
+
+# 运行测试（需要API服务器在8080端口运行）
+./test-api.sh
+```
+
+测试流程包括：
+1. 健康检查
+2. 用户注册
+3. 用户登录
+4. 获取用户资料
+5. 视频上传
+6. 获取用户视频列表
+7. 获取视频详情
+8. 添加评论
+9. 获取评论列表
+10. 获取单个评论详情
+
+### GitHub Actions CI/CD
+
+项目配置了GitHub Actions工作流，自动在每次推送时运行测试：
+
+- 自动构建Go服务
+- 启动MySQL和Redis依赖服务
+- 执行完整的API测试套件
+- 生成测试报告
+
+工作流文件：`.github/workflows/test.yml`
+
+### Postman 测试
+
+项目提供了完整的 Postman 集合用于 API 测试。
 
 ### 启动前端
 

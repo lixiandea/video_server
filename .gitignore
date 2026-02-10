@@ -7,4 +7,15 @@
 bin/
 *.out
 *.bin
-.DS_Storefrontend-vue/node_modules/
+.DS_Store
+frontend-vue/node_modules/
+
+# Test temporary files
+/tmp/register_response.json
+/tmp/login_response.json
+/tmp/upload_response.json
+/tmp/comment_response.json
+/tmp/test_video.txt
+
+# GitHub Actions
+.github/workflows/*.log

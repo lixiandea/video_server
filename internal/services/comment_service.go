@@ -21,7 +21,7 @@ func NewCommentService() *CommentService {
     }
 }
 
-func (s *CommentService) AddComment(videoID, authorID uint, content string) (*models.Comment, error) {
+func (s *CommentService) AddComment(videoID string, authorID uint, content string) (*models.Comment, error) {
     commentUUID := uuid.New().String()
     ctime := time.Now().Format("Jan 02 2006, 15:04:05")
 
@@ -54,7 +54,7 @@ func (s *CommentService) GetCommentByID(commentID string) (*models.Comment, erro
     return &comment, nil
 }
 
-func (s *CommentService) GetCommentsByVideoID(videoID uint, limit, offset int) ([]*models.Comment, error) {
+func (s *CommentService) GetCommentsByVideoID(videoID string, limit, offset int) ([]*models.Comment, error) {
     var comments []*models.Comment
     result := s.db.Where("video_id = ?", videoID).
         Limit(limit).Offset(offset).

@@ -34,9 +34,9 @@ type Comment struct {
     BaseModel
     UUID     string `gorm:"uniqueIndex;not null;type:varchar(255)" json:"id"`
     AuthorID uint   `gorm:"not null" json:"author_id"`
-    VideoID  uint   `gorm:"not null" json:"video_id"`
+    VideoID  string `gorm:"not null;type:varchar(255)" json:"video_id"`
     Content  string `gorm:"not null" json:"content"`
-    Ctime    string `json:"ctime"`
+    Ctime    string `gorm:"column:time" json:"ctime"`
 }
 
 type Session struct {

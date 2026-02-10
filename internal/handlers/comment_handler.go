@@ -28,9 +28,8 @@ func (h *CommentHandler) AddComment(c *gin.Context) {
     }
 
     videoIDStr := c.Param("video_id")
-    videoID, err := strconv.ParseUint(videoIDStr, 10, 32)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+    if videoIDStr == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Video ID is required"})
         return
     }
 
@@ -60,7 +59,7 @@ func (h *CommentHandler) AddComment(c *gin.Context) {
         return
     }
 
-    comment, err := h.commentService.AddComment(uint(videoID), userID.(uint), req.Content)
+    comment, err := h.commentService.AddComment(videoIDStr, userID.(uint), req.Content)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add comment"})
         return
@@ -76,9 +75,8 @@ func (h *CommentHandler) AddComment(c *gin.Context) {
 
 func (h *CommentHandler) GetComments(c *gin.Context) {
     videoIDStr := c.Param("video_id")
-    videoID, err := strconv.ParseUint(videoIDStr, 10, 32)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video ID"})
+    if videoIDStr == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Video ID is required"})
         return
     }
 
@@ -109,7 +107,7 @@ func (h *CommentHandler) GetComments(c *gin.Context) {
         return
     }
 
-    comments, err := h.commentService.GetCommentsByVideoID(uint(videoID), limit, offset)
+    comments, err := h.commentService.GetCommentsByVideoID(videoIDStr, limit, offset)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get comments"})
         return
