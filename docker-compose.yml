@@ -1,4 +1,4 @@
-version: '3.8'
+# version: '3.8' # 已过时，移除避免混淆
 
 services:
   mysql:
@@ -102,9 +102,49 @@ services:
     networks:
       - video_network
 
+  prometheus:
+    image: prom/prometheus:v2.40.0
+    container_name: video_server_prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - video_network
+
+  grafana:
+    image: grafana/grafana:9.3.0
+    container_name: video_server_grafana
+    restart: always
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./deploy/monitoring/grafana-dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yml
+      - ./deploy/monitoring/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - video_network
+
 volumes:
   mysql_data:
   redis_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   video_network:

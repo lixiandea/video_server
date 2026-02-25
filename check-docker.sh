@@ -1,40 +1,34 @@
 #!/bin/bash
 
-# Script to check if Docker environment is ready
+# Docker环境检查脚本
+# 检查Docker和Docker Compose是否正确安装和运行
 
 echo "Checking Docker environment..."
 
-# Check if Docker is installed
-if ! [ -x "$(command -v docker)" ]; then
-  echo "Error: Docker is not installed." >&2
-  echo "Please install Docker first:"
-  echo "  On macOS: brew install --cask docker"
-  echo "  Or download from: https://www.docker.com/products/docker-desktop"
-  exit 1
+# 检查Docker是否安装
+if ! command -v docker &> /dev/null; then
+    echo "✗ Docker is not installed"
+    exit 1
 else
-  echo "✓ Docker is installed"
-  docker --version
+    echo "✓ Docker is installed"
+    docker --version
 fi
 
-# Check if Docker Compose is installed
-if ! [ -x "$(command -v docker-compose)" ]; then
-  echo "Error: Docker Compose is not installed." >&2
-  echo "Please install Docker Compose first:"
-  echo "  Usually comes with Docker Desktop"
-  echo "  Or install standalone: https://docs.docker.com/compose/install/"
-  exit 1
+# 检查Docker Compose是否安装
+if ! command -v docker-compose &> /dev/null; then
+    echo "✗ Docker Compose is not installed"
+    exit 1
 else
-  echo "✓ Docker Compose is installed"
-  docker-compose --version
+    echo "✓ Docker Compose is installed"
+    docker-compose --version
 fi
 
-# Check if Docker daemon is running
-if ! docker info >/dev/null 2>&1; then
-  echo "Error: Docker daemon is not running." >&2
-  echo "Please start Docker Desktop or the Docker service."
-  exit 1
+# 检查Docker守护进程是否运行
+if ! docker info &> /dev/null; then
+    echo "✗ Docker daemon is not running"
+    exit 1
 else
-  echo "✓ Docker daemon is running"
+    echo "✓ Docker daemon is running"
 fi
 
 echo ""
@@ -42,6 +36,9 @@ echo "Docker environment is ready!"
 echo ""
 echo "To start the video server environment, run:"
 echo "  ./start-docker.sh"
+echo ""
+echo "To start only monitoring services, run:"
+echo "  ./start-monitoring.sh"
 echo ""
 echo "To stop the environment, run:"
 echo "  ./stop-docker.sh"

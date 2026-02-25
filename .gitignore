@@ -19,3 +19,7 @@ frontend-vue/node_modules/
 
 # GitHub Actions
 .github/workflows/*.log
+
+# Log files
+logs/*.log
+*.log

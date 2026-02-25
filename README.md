@@ -12,6 +12,7 @@
 - [快速开始](#快速开始)
 - [配置说明](#配置说明)
 - [API 接口文档](#api-接口文档)
+- [监控和可观测性](#监控和可观测性)
 - [Docker 部署](#docker-部署)
 - [前端测试界面](#前端测试界面)
 - [Postman 测试](#postman-测试)
@@ -294,6 +295,48 @@ storage:
 | GET | `/api/v1/comments/{id}` | 获取特定评论 | ✅ |
 | PUT | `/api/v1/comments/{id}` | 更新评论 | ✅ |
 | DELETE | `/api/v1/comments/{id}` | 删除评论 | ✅ |
+
+## 监控和可观测性
+
+本系统集成了完整的监控和可观测性解决方案，帮助您深入了解系统运行状况。
+
+### 监控架构
+
+系统采用业界标准的可观测性三支柱：
+
+1. **日志 (Logging)** - 结构化日志记录
+2. **指标 (Metrics)** - Prometheus指标收集
+3. **链路追踪 (Tracing)** - OpenTelemetry分布式追踪
+
+### 快速启动监控
+
+```bash
+# 启动包含监控组件的完整环境
+docker-compose -f docker-compose.monitoring.yml up -d
+
+# 访问监控界面
+# Grafana: http://localhost:3000 (admin/admin)
+# Prometheus: http://localhost:9090
+# Jaeger: http://localhost:16686
+```
+
+### 监控功能
+
+- **实时指标监控**: HTTP请求、数据库查询、业务指标
+- **分布式追踪**: 跨服务调用链路追踪
+- **可视化仪表板**: Grafana预设仪表板
+- **告警机制**: 基于阈值的异常告警
+
+### 详细文档
+
+查看完整的监控文档：[docs/monitoring.md](docs/monitoring.md)
+
+### 核心监控指标
+
+- HTTP请求速率和延迟
+- 数据库连接和查询性能
+- 系统资源使用情况
+- 业务关键指标（用户数、视频上传等）
 
 ## Docker 部署
 

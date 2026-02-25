@@ -1,0 +1,151 @@
+package middleware
+
+import (
+	"context"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/lixiandea/video_server/pkg/logging"
+	"github.com/lixiandea/video_server/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
+	"go.opentelemetry.io/otel/trace"
+)
+
+// TracingMiddleware creates tracing spans for HTTP requests
+func TracingMiddleware(serviceName string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Extract trace context from headers
+		ctx := c.Request.Context()
+		propagators := trace.NewTraceContext()
+		ctx = propagators.Extract(ctx, propagationHeaderCarrier{c.Request.Header})
+
+		// Start span for the HTTP request
+		spanName := c.Request.Method + " " + c.FullPath()
+		if spanName == c.Request.Method+" " {
+			spanName = c.Request.Method + " " + c.Request.URL.Path
+		}
+
+		ctx, span := tracing.StartSpanFromContext(ctx, spanName,
+			trace.WithSpanKind(trace.SpanKindServer),
+			trace.WithAttributes(
+				semconv.HTTPMethodKey.String(c.Request.Method),
+				semconv.HTTPURLKey.String(c.Request.URL.String()),
+				semconv.HTTPHostKey.String(c.Request.Host),
+				semconv.HTTPSchemeKey.String(c.Request.URL.Scheme),
+				semconv.HTTPFlavorKey.String(c.Request.Proto),
+				semconv.HTTPUserAgentKey.String(c.Request.UserAgent()),
+				semconv.NetPeerIPKey.String(c.ClientIP()),
+				attribute.String("service.name", serviceName),
+			),
+		)
+		defer span.End()
+
+		// Add trace IDs to logger context
+		logger := logging.GetLogger().With(
+			"trace_id", tracing.GetTraceID(ctx),
+			"span_id", tracing.GetSpanID(ctx),
+		)
+		ctx = logging.WithContext(ctx, logger)
+
+		// Update context
+		c.Request = c.Request.WithContext(ctx)
+
+		// Process request
+		start := time.Now()
+		c.Next()
+
+		// Add response attributes
+		duration := time.Since(start)
+		span.SetAttributes(
+			semconv.HTTPStatusCodeKey.Int(c.Writer.Status()),
+			semconv.HTTPRouteKey.String(c.FullPath()),
+			attribute.Int("http.response.size", c.Writer.Size()),
+			attribute.Float64("duration.ms", float64(duration.Milliseconds())),
+		)
+
+		// Record error if status code indicates failure
+		if c.Writer.Status() >= 400 {
+			span.SetStatus(semconv.StatusCodeError, "HTTP Error")
+			tracing.RecordError(ctx, &HTTPError{
+				StatusCode: c.Writer.Status(),
+				Message:    c.Errors.Last().Error(),
+			})
+		} else {
+			span.SetStatus(semconv.StatusCodeOk, "OK")
+		}
+
+		// Log request completion
+		logger.Info("HTTP request completed",
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"status", c.Writer.Status(),
+			"duration_ms", duration.Milliseconds(),
+			"client_ip", c.ClientIP(),
+		)
+	}
+}
+
+// DatabaseTracingMiddleware adds tracing to database operations
+func DatabaseTracingMiddleware(tableName, operation string) func(context.Context) (context.Context, trace.Span) {
+	return func(ctx context.Context) (context.Context, trace.Span) {
+		ctx, span := tracing.StartSpanFromContext(ctx, "database."+operation,
+			trace.WithSpanKind(trace.SpanKindClient),
+			trace.WithAttributes(
+				semconv.DBSystemKey.String("mysql"),
+				semconv.DBNameKey.String("video_server"),
+				semconv.DBStatementKey.String(operation),
+				attribute.String("db.table", tableName),
+				attribute.String("db.operation", operation),
+			),
+		)
+		return ctx, span
+	}
+}
+
+// BusinessOperationTracingMiddleware adds tracing to business operations
+func BusinessOperationTracingMiddleware(operation string) func(context.Context) (context.Context, trace.Span) {
+	return func(ctx context.Context) (context.Context, trace.Span) {
+		ctx, span := tracing.StartSpanFromContext(ctx, "business."+operation,
+			trace.WithSpanKind(trace.SpanKindInternal),
+			trace.WithAttributes(
+				attribute.String("business.operation", operation),
+			),
+		)
+		return ctx, span
+	}
+}
+
+// HTTPError represents an HTTP error for tracing purposes
+type HTTPError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *HTTPError) Error() string {
+	return e.Message
+}
+
+// propagationHeaderCarrier implements the TextMapCarrier interface for HTTP headers
+type propagationHeaderCarrier struct {
+	headers map[string][]string
+}
+
+func (c propagationHeaderCarrier) Get(key string) string {
+	if values := c.headers[key]; len(values) > 0 {
+		return values[0]
+	}
+	return ""
+}
+
+func (c propagationHeaderCarrier) Set(key, value string) {
+	c.headers[key] = []string{value}
+}
+
+func (c propagationHeaderCarrier) Keys() []string {
+	keys := make([]string, 0, len(c.headers))
+	for k := range c.headers {
+		keys = append(keys, k)
+	}
+	return keys
+}
