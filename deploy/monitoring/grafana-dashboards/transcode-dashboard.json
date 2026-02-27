@@ -1,0 +1,236 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "transcode-monitor",
+    "title": "视频转码监控面板",
+    "tags": ["video", "transcode"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "type": "graph",
+        "title": "队列任务统计",
+        "targets": [
+          {
+            "expr": "transcode_queue_length",
+            "legendFormat": "队列长度",
+            "refId": "A"
+          },
+          {
+            "expr": "transcode_queue_pending",
+            "legendFormat": "等待中",
+            "refId": "B"
+          },
+          {
+            "expr": "transcode_queue_processing",
+            "legendFormat": "转码中",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"label": "任务数", "show": true},
+          {"show": true}
+        ],
+        "xaxis": {"show": true, "mode": "time"},
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "pointradius": 2,
+        "points": false,
+        "bars": false,
+        "stack": false,
+        "percentage": false,
+        "legend": {"show": true, "values": false, "min": false, "max": false, "current": true, "total": false, "avg": false}
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "type": "graph",
+        "title": "任务完成统计",
+        "targets": [
+          {
+            "expr": "transcode_queue_completed_total",
+            "legendFormat": "成功完成",
+            "refId": "A"
+          },
+          {
+            "expr": "transcode_queue_failed_total",
+            "legendFormat": "失败",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"label": "任务数", "show": true},
+          {"show": true}
+        ],
+        "xaxis": {"show": true, "mode": "time"},
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "pointradius": 2,
+        "points": false,
+        "bars": false,
+        "stack": false,
+        "percentage": false,
+        "legend": {"show": true, "values": false, "min": false, "max": false, "current": true, "total": false, "avg": false}
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+        "type": "singlestat",
+        "title": "队列长度",
+        "targets": [
+          {
+            "expr": "transcode_queue_length",
+            "refId": "A"
+          }
+        ],
+        "valueName": "current",
+        "prefix": "",
+        "suffix": " 任务",
+        "valueMaps": [
+          {"value": "0", "op": "=", "text": "空闲"}
+        ],
+        "mappingType": 1,
+        "thresholds": "10,50",
+        "colorValue": true,
+        "colors": ["#299c46", "#e0b400", "#d44a3a"],
+        "format": "none"
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+        "type": "singlestat",
+        "title": "正在转码",
+        "targets": [
+          {
+            "expr": "transcode_queue_processing",
+            "refId": "A"
+          }
+        ],
+        "valueName": "current",
+        "prefix": "",
+        "suffix": " 任务",
+        "valueMaps": [],
+        "mappingType": 1,
+        "thresholds": "2,5",
+        "colorValue": true,
+        "colors": ["#299c46", "#e0b400", "#d44a3a"],
+        "format": "none"
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+        "type": "singlestat",
+        "title": "总完成数",
+        "targets": [
+          {
+            "expr": "transcode_queue_completed_total",
+            "refId": "A"
+          }
+        ],
+        "valueName": "current",
+        "prefix": "",
+        "suffix": " 任务",
+        "valueMaps": [],
+        "mappingType": 1,
+        "thresholds": "",
+        "colorValue": false,
+        "colors": ["#299c46", "#e0b400", "#d44a3a"],
+        "format": "none"
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8},
+        "type": "singlestat",
+        "title": "失败数",
+        "targets": [
+          {
+            "expr": "transcode_queue_failed_total",
+            "refId": "A"
+          }
+        ],
+        "valueName": "current",
+        "prefix": "",
+        "suffix": " 任务",
+        "valueMaps": [],
+        "mappingType": 1,
+        "thresholds": "1,5",
+        "colorValue": true,
+        "colors": ["#299c46", "#e0b400", "#d44a3a"],
+        "format": "none"
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "type": "graph",
+        "title": "转码处理时间",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(transcode_task_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95 处理时间",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(transcode_task_duration_seconds_bucket[5m]))",
+            "legendFormat": "P50 处理时间",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"label": "秒", "show": true, "format": "s"},
+          {"show": true}
+        ],
+        "xaxis": {"show": true, "mode": "time"},
+        "lines": true,
+        "fill": 1,
+        "linewidth": 2,
+        "pointradius": 2,
+        "points": false,
+        "bars": false,
+        "stack": false,
+        "percentage": false,
+        "legend": {"show": true, "values": true, "min": false, "max": false, "current": true, "total": false, "avg": false}
+      },
+      {
+        "id": 8,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "type": "table",
+        "title": "最近任务列表",
+        "targets": [
+          {
+            "expr": "transcode_task_info",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "columns": [
+          {"text": "Task ID", "value": "task_id"},
+          {"text": "状态", "value": "status"},
+          {"text": "进度", "value": "progress"},
+          {"text": "质量", "value": "quality"}
+        ],
+        "transform": "table",
+        "styles": [
+          {
+            "pattern": "status",
+            "type": "string",
+            "colorMode": "cell",
+            "colors": ["#299c46", "#e0b400", "#d44a3a"],
+            "valueMaps": [
+              {"value": "0", "text": "等待中"},
+              {"value": "1", "text": "转码中"},
+              {"value": "2", "text": "已完成"},
+              {"value": "3", "text": "失败"}
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

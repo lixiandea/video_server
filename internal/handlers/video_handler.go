@@ -1,27 +1,36 @@
 package handlers
 
 import (
+    "context"
     "net/http"
     "strconv"
-    
+
     "github.com/gin-gonic/gin"
     "github.com/lixiandea/video_server/internal/config"
     "github.com/lixiandea/video_server/internal/services"
+    "github.com/lixiandea/video_server/pkg/logging"
+    "github.com/lixiandea/video_server/pkg/queue"
     "github.com/lixiandea/video_server/pkg/storage"
     "github.com/lixiandea/video_server/pkg/validation"
+    "go.uber.org/zap"
 )
 
 type VideoHandler struct {
-    videoService  *services.VideoService
+    videoService   *services.VideoService
     storageService *storage.StorageService
-    cfg           *config.Config
+    transcodeService *services.TranscodeService
+    taskQueue      *queue.TaskQueue
+    cfg            *config.Config
 }
 
-func NewVideoHandler(storageService *storage.StorageService, cfg *config.Config) *VideoHandler {
+func NewVideoHandler(storageService *storage.StorageService, cfg *config.Config, 
+    transcodeService *services.TranscodeService, taskQueue *queue.TaskQueue) *VideoHandler {
     return &VideoHandler{
-        videoService:  services.NewVideoService(),
-        storageService: storageService,
-        cfg:           cfg,
+        videoService:     services.NewVideoService(),
+        storageService:   storageService,
+        transcodeService: transcodeService,
+        taskQueue:        taskQueue,
+        cfg:              cfg,
     }
 }
 
@@ -85,10 +94,32 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
     }
     h.videoService.UpdateVideo(video.UUID, updates)
 
+    // 添加转码任务到队列（异步处理，不影响上传响应）
+    go func() {
+        task := &queue.TranscodeTask{
+            VideoID:      video.UUID,
+            SourcePath:   h.storageService.GetVideoPath(video.UUID),
+            TargetFormat: "mp4",
+            Quality:      "high", // 可以支持多质量转码
+        }
+        
+        ctx := context.Background()
+        if err := h.taskQueue.EnqueueTranscodeTask(ctx, task); err != nil {
+            logging.GetLogger().Error("Failed to enqueue transcode task",
+                zap.String("video_id", video.UUID),
+                zap.Error(err))
+        } else {
+            logging.GetLogger().Info("Transcode task enqueued",
+                zap.String("video_id", video.UUID),
+                zap.String("task_id", task.TaskID))
+        }
+    }()
+
     c.JSON(http.StatusCreated, gin.H{
         "message": "Video uploaded successfully",
         "video_id": video.UUID,
         "name":    video.Name,
+        "transcode_status": "queued",
     })
 }
 

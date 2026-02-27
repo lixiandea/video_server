@@ -77,6 +77,51 @@ var (
 		},
 	)
 
+	// Transcode queue metrics
+	transcodeQueueLength = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "transcode_queue_length",
+			Help: "Current length of transcode queue",
+		},
+	)
+
+	transcodeQueuePending = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "transcode_queue_pending",
+			Help: "Number of pending transcode tasks",
+		},
+	)
+
+	transcodeQueueProcessing = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "transcode_queue_processing",
+			Help: "Number of processing transcode tasks",
+		},
+	)
+
+	transcodeQueueCompleted = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "transcode_queue_completed_total",
+			Help: "Total number of completed transcode tasks",
+		},
+	)
+
+	transcodeQueueFailed = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "transcode_queue_failed_total",
+			Help: "Total number of failed transcode tasks",
+		},
+	)
+
+	transcodeTaskDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "transcode_task_duration_seconds",
+			Help:    "Transcode task duration in seconds",
+			Buckets: prometheus.ExponentialBuckets(10, 2, 10),
+		},
+		[]string{"quality", "status"},
+	)
+
 	// System metrics
 	goRoutines = promauto.NewGauge(
 		prometheus.GaugeOpts{
@@ -202,6 +247,25 @@ func IncAuthFailure() {
 
 func SetDBConnections(count float64) {
 	dbConnections.Set(count)
+}
+
+// Transcode queue metrics helpers
+func SetTranscodeQueueStats(length, pending, processing int) {
+	transcodeQueueLength.Set(float64(length))
+	transcodeQueuePending.Set(float64(pending))
+	transcodeQueueProcessing.Set(float64(processing))
+}
+
+func IncTranscodeCompleted() {
+	transcodeQueueCompleted.Inc()
+}
+
+func IncTranscodeFailed() {
+	transcodeQueueFailed.Inc()
+}
+
+func ObserveTranscodeDuration(duration time.Duration, quality, status string) {
+	transcodeTaskDuration.WithLabelValues(quality, status).Observe(duration.Seconds())
 }
 
 func IncDBQueries(table, operation string) {

@@ -13,9 +13,11 @@ import (
 	"github.com/lixiandea/video_server/internal/config"
 	"github.com/lixiandea/video_server/internal/handlers"
 	"github.com/lixiandea/video_server/internal/middleware"
+	"github.com/lixiandea/video_server/internal/services"
 	"github.com/lixiandea/video_server/pkg/database"
 	"github.com/lixiandea/video_server/pkg/logging"
 	"github.com/lixiandea/video_server/pkg/metrics"
+	"github.com/lixiandea/video_server/pkg/queue"
 	"github.com/lixiandea/video_server/pkg/redis"
 	"github.com/lixiandea/video_server/pkg/storage"
 	"go.uber.org/zap"
@@ -54,6 +56,19 @@ func main() {
 	// Initialize storage
 	storageService := storage.NewStorageService(&cfg.Storage)
 
+	// Initialize task queue and transcode service
+	redisClient := redis.GetClient()
+	var taskQueue *queue.TaskQueue
+	var transcodeService *services.TranscodeService
+	
+	if redisClient != nil {
+		taskQueue = queue.NewTaskQueue(redisClient, queue.DefaultQueueConfig)
+		transcodeService = services.NewTranscodeService(taskQueue, cfg.Storage.VideoDir)
+		log.Println("Transcode queue initialized")
+	} else {
+		log.Println("Warning: Redis not available, transcode queue disabled")
+	}
+
 	// Set Gin mode based on config
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -65,8 +80,12 @@ func main() {
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler()
-	videoHandler := handlers.NewVideoHandler(storageService, cfg)
+	videoHandler := handlers.NewVideoHandler(storageService, cfg, transcodeService, taskQueue)
 	commentHandler := handlers.NewCommentHandler()
+	var transcodeHandler *handlers.TranscodeHandler
+	if transcodeService != nil && taskQueue != nil {
+		transcodeHandler = handlers.NewTranscodeHandler(transcodeService, taskQueue)
+	}
 
 	// Initialize rate limiter with config
 	if cfg.Server.RateLimit.Enabled {
@@ -125,6 +144,15 @@ func main() {
 		protected.GET("/comments/:comment_id", commentHandler.GetComment)
 		protected.PUT("/comments/:comment_id", commentHandler.UpdateComment)
 		protected.DELETE("/comments/:comment_id", commentHandler.DeleteComment)
+
+		// Transcode routes (if available)
+		if transcodeHandler != nil {
+			protected.GET("/transcode/tasks/:task_id", transcodeHandler.GetTaskStatus)
+			protected.GET("/transcode/queue/stats", transcodeHandler.GetQueueStats)
+			protected.GET("/transcode/tasks", transcodeHandler.ListTasks)
+			protected.POST("/transcode/tasks/:task_id/retry", transcodeHandler.RetryTask)
+			protected.POST("/transcode/tasks/:task_id/cancel", transcodeHandler.CancelTask)
+		}
 	}
 
 	logging.GetLogger().Info("API server starting",

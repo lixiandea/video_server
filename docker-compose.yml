@@ -90,6 +90,28 @@ services:
     networks:
       - video_network
 
+  transcode-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.transcode-worker
+    container_name: video_server_transcode_worker
+    restart: always
+    depends_on:
+      - redis
+      - mysql
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=video_user
+      - DB_PASSWORD=video_password
+      - DB_NAME=video_server
+      - REDIS_ADDR=redis:6379
+      - TRANSCODE_CONCURRENCY=2
+    networks:
+      - video_network
+    volumes:
+      - ./storage:/app/storage
+
   frontend:
     build:
       context: .

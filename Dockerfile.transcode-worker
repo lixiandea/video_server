@@ -1,0 +1,37 @@
+# Multi-stage build for transcode worker
+FROM golang:1.21-alpine AS builder
+
+# Install git and ffmpeg for go modules and transcoding
+RUN apk add --no-cache git ffmpeg
+
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies with GOPROXY for faster builds in China
+ENV GOPROXY=https://goproxy.cn,direct
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o transcode-worker ./cmd/transcode-worker/main.go
+
+# Final stage
+FROM alpine:latest
+
+# Install ca-certificates and ffmpeg for HTTPS and transcoding
+RUN apk --no-cache add ca-certificates ffmpeg
+
+WORKDIR /root/
+
+# Copy the binary from builder stage
+COPY --from=builder /app/transcode-worker .
+
+# Create storage directory
+RUN mkdir -p /app/storage/videos /app/storage/temp
+
+# Run the binary
+ENTRYPOINT ["./transcode-worker"]
