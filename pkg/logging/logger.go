@@ -82,6 +82,11 @@ func Sync() error {
 	return nil
 }
 
+// WithRequestID 添加请求 ID 到日志
+func WithRequestID(requestID string) zap.Field {
+	return zap.String("request_id", requestID)
+}
+
 // Helper functions for common log operations
 func Info(msg string, fields ...zap.Field) {
 	GetLogger().Info(msg, fields...)

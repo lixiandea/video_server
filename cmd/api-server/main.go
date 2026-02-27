@@ -73,6 +73,7 @@ func main() {
 
 	// Global middleware
 	r.Use(middleware.CORSMiddleware())
+	r.Use(middleware.RequestIDMiddleware()) // Add request ID tracking
 	r.Use(middleware.LoggingMiddleware())
 	r.Use(middleware.ErrorLoggingMiddleware())
 	r.Use(middleware.RateLimitMiddleware()) // Add rate limiting

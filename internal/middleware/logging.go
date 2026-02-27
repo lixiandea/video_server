@@ -12,20 +12,20 @@ import (
 func LoggingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		
+
 		// Process request
 		c.Next()
-		
+
 		// Calculate duration
 		duration := time.Since(start)
-		
+
 		// Get user ID from context if available
 		var userID interface{}
 		if uid, exists := c.Get("user_id"); exists {
 			userID = uid
 		}
-		
-		// Log the request
+
+		// Log the request with request ID
 		logging.LogRequest(
 			c.Request.Method,
 			c.Request.URL.Path,
@@ -33,7 +33,7 @@ func LoggingMiddleware() gin.HandlerFunc {
 			duration,
 			userID,
 		)
-		
+
 		// Add timing header for client-side performance monitoring
 		c.Header("X-Response-Time", duration.String())
 	}
