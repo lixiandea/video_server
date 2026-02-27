@@ -1,22 +1,27 @@
 package services
 
 import (
+    "context"
     "errors"
     "fmt"
-    
+    "time"
+
     "github.com/lixiandea/video_server/internal/models"
     "github.com/lixiandea/video_server/pkg/auth"
     "github.com/lixiandea/video_server/pkg/database"
+    "github.com/lixiandea/video_server/pkg/redis"
     "gorm.io/gorm"
 )
 
 type UserService struct {
-    db *gorm.DB
+    db    *gorm.DB
+    cache *redis.CacheManager
 }
 
 func NewUserService() *UserService {
     return &UserService{
-        db: database.GetDB(),
+        db:    database.GetDB(),
+        cache: redis.NewCacheManager(redis.GetClient()),
     }
 }
 
@@ -57,13 +62,29 @@ func (s *UserService) AuthenticateUser(username, password string) (*models.User,
 }
 
 func (s *UserService) GetUserByID(id uint) (*models.User, error) {
+    ctx := context.Background()
+    cacheKey := fmt.Sprintf("user:%d", id)
     var user models.User
+
+    // 尝试从缓存获取
+    if s.cache != nil {
+        if err := s.cache.Get(ctx, cacheKey, &user); err == nil && user.ID != 0 {
+            return &user, nil
+        }
+    }
+
+    // 从数据库获取
     result := s.db.First(&user, id)
     if errors.Is(result.Error, gorm.ErrRecordNotFound) {
         return nil, fmt.Errorf("user not found")
     }
     if result.Error != nil {
         return nil, fmt.Errorf("database error: %w", result.Error)
+    }
+
+    // 设置缓存（10 分钟过期）
+    if s.cache != nil {
+        _ = s.cache.Set(ctx, cacheKey, &user, 10*time.Minute)
     }
 
     return &user, nil

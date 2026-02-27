@@ -9,6 +9,7 @@ import (
 type Config struct {
     Server   ServerConfig   `mapstructure:"server"`
     Database DatabaseConfig `mapstructure:"database"`
+    Redis    RedisConfig    `mapstructure:"redis"`
     Storage  StorageConfig  `mapstructure:"storage"`
 }
 
@@ -27,6 +28,17 @@ type DatabaseConfig struct {
     Password string `mapstructure:"password"`
     Name     string `mapstructure:"name"`
     Charset  string `mapstructure:"charset"`
+}
+
+type RedisConfig struct {
+    Addr         string `mapstructure:"addr"`
+    Password     string `mapstructure:"password"`
+    DB           int    `mapstructure:"db"`
+    PoolSize     int    `mapstructure:"pool_size"`
+    MinIdleConns int    `mapstructure:"min_idle_conns"`
+    DialTimeout  int    `mapstructure:"dial_timeout"`  // seconds
+    ReadTimeout  int    `mapstructure:"read_timeout"`  // seconds
+    WriteTimeout int    `mapstructure:"write_timeout"` // seconds
 }
 
 type StorageConfig struct {
@@ -51,6 +63,15 @@ func LoadConfig() *Config {
     viper.SetDefault("database.name", "video_server")
     viper.SetDefault("database.charset", "utf8mb4")
 
+    viper.SetDefault("redis.addr", "localhost:6379")
+    viper.SetDefault("redis.password", "")
+    viper.SetDefault("redis.db", 0)
+    viper.SetDefault("redis.pool_size", 20)
+    viper.SetDefault("redis.min_idle_conns", 5)
+    viper.SetDefault("redis.dial_timeout", 5)
+    viper.SetDefault("redis.read_timeout", 3)
+    viper.SetDefault("redis.write_timeout", 3)
+
     viper.SetDefault("storage.video_dir", "./storage/videos/")
     viper.SetDefault("storage.template_dir", "./templates/")
     viper.SetDefault("storage.temp_dir", "./storage/temp/")
@@ -65,6 +86,10 @@ func LoadConfig() *Config {
     viper.BindEnv("database.user", "DB_USER")
     viper.BindEnv("database.password", "DB_PASSWORD")
     viper.BindEnv("database.name", "DB_NAME")
+
+    // Bind environment variables for redis
+    viper.BindEnv("redis.addr", "REDIS_ADDR")
+    viper.BindEnv("redis.password", "REDIS_PASSWORD")
 
     viper.SetConfigName("config")
     viper.SetConfigType("yaml")

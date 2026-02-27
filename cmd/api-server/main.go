@@ -16,6 +16,7 @@ import (
 	"github.com/lixiandea/video_server/pkg/database"
 	"github.com/lixiandea/video_server/pkg/logging"
 	"github.com/lixiandea/video_server/pkg/metrics"
+	"github.com/lixiandea/video_server/pkg/redis"
 	"github.com/lixiandea/video_server/pkg/storage"
 	"go.uber.org/zap"
 )
@@ -32,6 +33,23 @@ func main() {
 
 	// Initialize database
 	database.InitDatabase(&cfg.Database)
+
+	// Initialize Redis
+	redisCfg := &redis.Config{
+		Addr:         cfg.Redis.Addr,
+		Password:     cfg.Redis.Password,
+		DB:           cfg.Redis.DB,
+		PoolSize:     cfg.Redis.PoolSize,
+		MinIdleConns: cfg.Redis.MinIdleConns,
+		DialTimeout:  time.Duration(cfg.Redis.DialTimeout) * time.Second,
+		ReadTimeout:  time.Duration(cfg.Redis.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(cfg.Redis.WriteTimeout) * time.Second,
+	}
+	if err := redis.InitRedis(redisCfg); err != nil {
+		log.Printf("Warning: Redis connection failed, continuing without cache: %v", err)
+	} else {
+		defer redis.Close()
+	}
 
 	// Initialize storage
 	storageService := storage.NewStorageService(&cfg.Storage)

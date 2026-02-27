@@ -1,23 +1,27 @@
 package services
 
 import (
+    "context"
     "errors"
     "fmt"
     "time"
-    
+
     "github.com/google/uuid"
     "github.com/lixiandea/video_server/internal/models"
     "github.com/lixiandea/video_server/pkg/database"
+    "github.com/lixiandea/video_server/pkg/redis"
     "gorm.io/gorm"
 )
 
 type VideoService struct {
-    db *gorm.DB
+    db    *gorm.DB
+    cache *redis.CacheManager
 }
 
 func NewVideoService() *VideoService {
     return &VideoService{
-        db: database.GetDB(),
+        db:    database.GetDB(),
+        cache: redis.NewCacheManager(redis.GetClient()),
     }
 }
 
@@ -42,13 +46,29 @@ func (s *VideoService) CreateVideo(authorID uint, name string) (*models.Video, e
 }
 
 func (s *VideoService) GetVideoByID(videoID string) (*models.Video, error) {
+    ctx := context.Background()
+    cacheKey := fmt.Sprintf("video:%s", videoID)
     var video models.Video
+
+    // 尝试从缓存获取
+    if s.cache != nil {
+        if err := s.cache.Get(ctx, cacheKey, &video); err == nil && video.UUID != "" {
+            return &video, nil
+        }
+    }
+
+    // 从数据库获取
     result := s.db.First(&video, "uuid = ?", videoID)
     if errors.Is(result.Error, gorm.ErrRecordNotFound) {
         return nil, fmt.Errorf("video not found")
     }
     if result.Error != nil {
         return nil, fmt.Errorf("database error: %w", result.Error)
+    }
+
+    // 设置缓存（5 分钟过期）
+    if s.cache != nil {
+        _ = s.cache.Set(ctx, cacheKey, &video, 5*time.Minute)
     }
 
     return &video, nil
