@@ -48,6 +48,7 @@ services:
       - DB_PASSWORD=video_password
       - DB_NAME=video_server
       - REDIS_ADDR=redis:6379
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
     networks:
       - video_network
     volumes:

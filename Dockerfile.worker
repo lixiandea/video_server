@@ -9,7 +9,8 @@ WORKDIR /app
 # Copy go mod files
 COPY go.mod go.sum ./
 
-# Download dependencies
+# Download dependencies with GOPROXY for faster builds in China
+ENV GOPROXY=https://goproxy.cn,direct
 RUN go mod download
 
 # Copy source code

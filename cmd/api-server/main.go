@@ -57,6 +57,7 @@ func main() {
 	r.Use(middleware.CORSMiddleware())
 	r.Use(middleware.LoggingMiddleware())
 	r.Use(middleware.ErrorLoggingMiddleware())
+	r.Use(middleware.RateLimitMiddleware()) // Add rate limiting
 	r.Use(metrics.MetricsMiddleware())
 	r.Use(gin.Recovery())
 

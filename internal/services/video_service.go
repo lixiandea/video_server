@@ -60,12 +60,35 @@ func (s *VideoService) GetVideosByUserID(userID uint, limit, offset int) ([]*mod
         Limit(limit).Offset(offset).
         Order("created_at DESC").
         Find(&videos)
-        
+
     if result.Error != nil {
         return nil, fmt.Errorf("database error: %w", result.Error)
     }
 
     return videos, nil
+}
+
+// GetVideosByUserIDWithTotal returns videos with actual total count for pagination
+func (s *VideoService) GetVideosByUserIDWithTotal(userID uint, limit, offset int) ([]*models.Video, int64, error) {
+    var videos []*models.Video
+    var total int64
+
+    // Get total count
+    if err := s.db.Model(&models.Video{}).Where("author_id = ?", userID).Count(&total).Error; err != nil {
+        return nil, 0, fmt.Errorf("failed to count videos: %w", err)
+    }
+
+    // Get paginated videos
+    result := s.db.Where("author_id = ?", userID).
+        Limit(limit).Offset(offset).
+        Order("created_at DESC").
+        Find(&videos)
+
+    if result.Error != nil {
+        return nil, 0, fmt.Errorf("database error: %w", result.Error)
+    }
+
+    return videos, total, nil
 }
 
 func (s *VideoService) UpdateVideo(videoID string, updates map[string]interface{}) error {

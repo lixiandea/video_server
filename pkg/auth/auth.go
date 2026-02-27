@@ -2,14 +2,24 @@ package auth
 
 import (
     "errors"
+    "os"
     "time"
-    
+
     "github.com/golang-jwt/jwt/v5"
     "github.com/google/uuid"
     "golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("your-secret-key-change-in-production") // Should be loaded from env
+var jwtSecret = []byte(getJWTSecret())
+
+// getJWTSecret loads the JWT secret from environment variable or uses a default
+func getJWTSecret() string {
+    if secret := os.Getenv("JWT_SECRET"); secret != "" {
+        return secret
+    }
+    // In production, always set JWT_SECRET environment variable
+    return "your-secret-key-change-in-production"
+}
 
 type Claims struct {
     UserID    uint   `json:"user_id"`

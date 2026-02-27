@@ -153,12 +153,12 @@ func (h *VideoHandler) GetUserVideos(c *gin.Context) {
     // Get pagination params
     pageStr := c.DefaultQuery("page", "1")
     limitStr := c.DefaultQuery("limit", "10")
-    
+
     page, err := strconv.Atoi(pageStr)
     if err != nil || page < 1 {
         page = 1
     }
-    
+
     limit, err := strconv.Atoi(limitStr)
     if err != nil || limit < 1 || limit > 100 {
         limit = 10
@@ -166,7 +166,7 @@ func (h *VideoHandler) GetUserVideos(c *gin.Context) {
 
     offset := (page - 1) * limit
 
-    videos, err := h.videoService.GetVideosByUserID(userID.(uint), limit, offset)
+    videos, total, err := h.videoService.GetVideosByUserIDWithTotal(userID.(uint), limit, offset)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get videos"})
         return
@@ -197,7 +197,7 @@ func (h *VideoHandler) GetUserVideos(c *gin.Context) {
         "videos": videoList,
         "page":   page,
         "limit":  limit,
-        "total":  len(videoList), // In a real app, you'd want to return actual total count
+        "total":  total,
     })
 }
 

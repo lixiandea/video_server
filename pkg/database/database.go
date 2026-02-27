@@ -47,15 +47,18 @@ func InitDatabase(cfg *config.DatabaseConfig) *gorm.DB {
 		logging.GetLogger().Warn("Migration warning", zap.Error(err))
 	}
 
-	// Set connection pool
+	// Set connection pool with optimized settings
 	sqlDB, err := DB.DB()
 	if err != nil {
 		logging.GetLogger().Error("Failed to get database instance", zap.Error(err))
 		panic(fmt.Sprintf("Failed to get database instance: %v", err))
 	}
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	
+	// Optimized connection pool settings
+	sqlDB.SetMaxIdleConns(25)           // Increased idle connections for better concurrency
+	sqlDB.SetMaxOpenConns(200)          // Increased max connections for high load
+	sqlDB.SetConnMaxLifetime(30 * time.Minute) // Reduced lifetime to prevent stale connections
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)  // Close idle connections after 5 minutes
 
 	// Start database metrics collection
 	go collectDBMetrics(sqlDB)

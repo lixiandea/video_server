@@ -2,8 +2,9 @@ package main
 
 import (
     "log"
+    "strings"
     "time"
-    
+
     "github.com/gin-gonic/gin"
     "github.com/lixiandea/video_server/internal/config"
     "github.com/lixiandea/video_server/internal/services"
@@ -58,11 +59,35 @@ func main() {
 
 // 加载调度器专用配置
 func loadSchedulerConfig() *config.Config {
-    // 设置调度器专用配置
+    // Enable environment variable binding
+    viper.AutomaticEnv()
+    viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+    // Bind environment variables for database
+    viper.BindEnv("database.host", "DB_HOST")
+    viper.BindEnv("database.port", "DB_PORT")
+    viper.BindEnv("database.user", "DB_USER")
+    viper.BindEnv("database.password", "DB_PASSWORD")
+    viper.BindEnv("database.name", "DB_NAME")
+
+    // Set defaults
+    viper.SetDefault("server.port", "8089")
+    viper.SetDefault("server.mode", "debug")
+    viper.SetDefault("database.host", "localhost")
+    viper.SetDefault("database.port", 3306)
+    viper.SetDefault("database.user", "root")
+    viper.SetDefault("database.password", "password")
+    viper.SetDefault("database.name", "video_server")
+    viper.SetDefault("database.charset", "utf8mb4")
+    viper.SetDefault("storage.video_dir", "./storage/videos/")
+    viper.SetDefault("storage.template_dir", "./templates/")
+    viper.SetDefault("storage.temp_dir", "./storage/temp/")
+
+    // Set scheduler specific config file
     viper.SetConfigName("config-scheduler")
     viper.SetConfigType("yaml")
     viper.AddConfigPath(".")
-    
+
     if err := viper.ReadInConfig(); err != nil {
         log.Printf("Scheduler config file not found, using defaults: %v", err)
     }

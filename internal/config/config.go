@@ -3,6 +3,7 @@ package config
 import (
     "github.com/spf13/viper"
     "log"
+    "strings"
 )
 
 type Config struct {
@@ -42,17 +43,28 @@ func LoadConfig() *Config {
     viper.SetDefault("server.read_timeout", 30)
     viper.SetDefault("server.write_timeout", 30)
     viper.SetDefault("server.max_file_size", int64(50*1024*1024)) // 50MB
-    
+
     viper.SetDefault("database.host", "localhost")
     viper.SetDefault("database.port", 3306)
     viper.SetDefault("database.user", "root")
     viper.SetDefault("database.password", "password")
     viper.SetDefault("database.name", "video_server")
     viper.SetDefault("database.charset", "utf8mb4")
-    
+
     viper.SetDefault("storage.video_dir", "./storage/videos/")
     viper.SetDefault("storage.template_dir", "./templates/")
     viper.SetDefault("storage.temp_dir", "./storage/temp/")
+
+    // Enable environment variable binding
+    viper.AutomaticEnv()
+    viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+    // Bind environment variables for database
+    viper.BindEnv("database.host", "DB_HOST")
+    viper.BindEnv("database.port", "DB_PORT")
+    viper.BindEnv("database.user", "DB_USER")
+    viper.BindEnv("database.password", "DB_PASSWORD")
+    viper.BindEnv("database.name", "DB_NAME")
 
     viper.SetConfigName("config")
     viper.SetConfigType("yaml")
