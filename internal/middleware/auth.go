@@ -107,12 +107,33 @@ func (rl *RateLimiter) Middleware() gin.HandlerFunc {
     }
 }
 
-// Global rate limiter instance (10 requests per second, burst of 20)
-var globalRateLimiter = NewRateLimiter(10, 20)
+// RateLimiterConfig 限流配置
+type RateLimiterConfig struct {
+	Rate  float64 // 每秒请求数
+	Burst int     // 突发请求数
+}
 
-// RateLimitMiddleware returns the global rate limiter middleware
+// DefaultRateLimitConfig 默认限流配置
+var DefaultRateLimitConfig = RateLimiterConfig{
+	Rate:  10, // 10 requests per second
+	Burst: 20, // burst of 20 requests
+}
+
+// rateLimiterWithConfig 带配置的限流器
+var rateLimiterWithConfig *RateLimiter
+
+// InitRateLimit 初始化限流配置
+func InitRateLimit(config RateLimiterConfig) {
+	rateLimiterWithConfig = NewRateLimiter(rate.Limit(config.Rate), config.Burst)
+}
+
+// RateLimitMiddleware returns the rate limiter middleware
 func RateLimitMiddleware() gin.HandlerFunc {
-    return globalRateLimiter.Middleware()
+	// 如果没有初始化，使用默认配置
+	if rateLimiterWithConfig == nil {
+		rateLimiterWithConfig = NewRateLimiter(rate.Limit(DefaultRateLimitConfig.Rate), DefaultRateLimitConfig.Burst)
+	}
+	return rateLimiterWithConfig.Middleware()
 }
 
 // Cleanup old limiters periodically to prevent memory leak

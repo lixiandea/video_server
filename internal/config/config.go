@@ -19,6 +19,13 @@ type ServerConfig struct {
     ReadTimeout  int    `mapstructure:"read_timeout"`  // seconds
     WriteTimeout int    `mapstructure:"write_timeout"` // seconds
     MaxFileSize  int64  `mapstructure:"max_file_size"` // bytes
+    RateLimit    RateLimitConfig `mapstructure:"rate_limit"`
+}
+
+type RateLimitConfig struct {
+    Enabled bool    `mapstructure:"enabled"`
+    Rate    float64 `mapstructure:"rate"`  // requests per second
+    Burst   int     `mapstructure:"burst"` // max burst size
 }
 
 type DatabaseConfig struct {
@@ -55,6 +62,9 @@ func LoadConfig() *Config {
     viper.SetDefault("server.read_timeout", 30)
     viper.SetDefault("server.write_timeout", 30)
     viper.SetDefault("server.max_file_size", int64(50*1024*1024)) // 50MB
+    viper.SetDefault("server.rate_limit.enabled", true)
+    viper.SetDefault("server.rate_limit.rate", 10.0)
+    viper.SetDefault("server.rate_limit.burst", 20)
 
     viper.SetDefault("database.host", "localhost")
     viper.SetDefault("database.port", 3306)

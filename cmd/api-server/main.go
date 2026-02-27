@@ -68,6 +68,14 @@ func main() {
 	videoHandler := handlers.NewVideoHandler(storageService, cfg)
 	commentHandler := handlers.NewCommentHandler()
 
+	// Initialize rate limiter with config
+	if cfg.Server.RateLimit.Enabled {
+		middleware.InitRateLimit(middleware.RateLimiterConfig{
+			Rate:  cfg.Server.RateLimit.Rate,
+			Burst: cfg.Server.RateLimit.Burst,
+		})
+	}
+
 	// Setup routes
 	r := gin.New()
 
