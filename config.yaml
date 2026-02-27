@@ -4,6 +4,10 @@ server:
   read_timeout: 30  # seconds
   write_timeout: 30  # seconds
   max_file_size: 52428800  # 50MB in bytes
+  rate_limit:
+    enabled: true
+    rate: 10.0    # requests per second
+    burst: 20     # max burst size
 
 database:
   host: "localhost"  # Will be overwritten by environment variable in Docker
@@ -12,6 +16,16 @@ database:
   password: "Cz05180921."
   name: "video_server"
   charset: "utf8mb4"
+
+redis:
+  addr: "localhost:6379"  # Will be overwritten by REDIS_ADDR in Docker
+  password: ""
+  db: 0
+  pool_size: 20
+  min_idle_conns: 5
+  dial_timeout: 5
+  read_timeout: 3
+  write_timeout: 3
 
 storage:
   video_dir: "./storage/videos/"
