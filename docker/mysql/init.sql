@@ -55,7 +55,28 @@ CREATE TABLE IF NOT EXISTS video_del_rec (
 -- 插入默认管理员用户
 INSERT IGNORE INTO users (login_name, pwd) VALUES ('admin', '$2a$14$E7uTR7u/.PQp9O0HObpEpO1GxbFKJr2NcU7UN.a8P1.B.3q0/Xt5.');
 
--- 创建索引
+-- 创建索引优化查询性能
+-- 视频表索引
 CREATE INDEX idx_video_author ON video_info(author_id);
+CREATE INDEX idx_video_created_at ON video_info(created_at DESC);
+CREATE INDEX idx_video_status ON video_info(status);
+CREATE INDEX idx_video_author_status ON video_info(author_id, status);
+CREATE INDEX idx_video_author_created ON video_info(author_id, created_at DESC);
+
+-- 评论表索引
 CREATE INDEX idx_comments_video ON comments(video_id);
 CREATE INDEX idx_comments_author ON comments(author_id);
+CREATE INDEX idx_comments_created ON comments(created_at DESC);
+CREATE INDEX idx_comments_video_created ON comments(video_id, created_at DESC);
+
+-- 用户表索引
+CREATE INDEX idx_users_login_name ON users(login_name);
+CREATE INDEX idx_users_created ON users(created_at);
+
+-- 会话表索引
+CREATE INDEX idx_sessions_login_name ON sessions(login_name);
+CREATE INDEX idx_sessions_ttl ON sessions(TTL);
+
+-- 视频删除记录表索引
+CREATE INDEX idx_del_rec_video_uuid ON video_del_rec(video_uuid);
+CREATE INDEX idx_del_rec_created ON video_del_rec(created_at);
