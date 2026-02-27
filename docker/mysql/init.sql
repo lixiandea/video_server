@@ -55,6 +55,9 @@ CREATE TABLE IF NOT EXISTS video_del_rec (
 -- 插入默认管理员用户
 INSERT IGNORE INTO users (login_name, pwd) VALUES ('admin', '$2a$14$E7uTR7u/.PQp9O0HObpEpO1GxbFKJr2NcU7UN.a8P1.B.3q0/Xt5.');
 
+-- 注意：GORM 不使用外键约束，因此不创建外键
+-- 应用层通过代码逻辑保证数据完整性
+
 -- 创建索引优化查询性能
 -- 视频表索引
 CREATE INDEX idx_video_author ON video_info(author_id);
