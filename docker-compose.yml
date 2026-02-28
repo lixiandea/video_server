@@ -114,16 +114,18 @@ services:
 
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      context: ./frontend-new
+      dockerfile: Dockerfile.frontend.nginx
     container_name: video_server_frontend
     restart: always
     depends_on:
       - api-server
     ports:
-      - "3000:3000"
+      - "3000:80"
     networks:
       - video_network
+    environment:
+      - VITE_API_TARGET=http://api-server:8080
 
   prometheus:
     image: prom/prometheus:v2.40.0

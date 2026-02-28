@@ -268,7 +268,7 @@ run_test "Get Single Comment (Success)" "get_single_comment"
 
 # Cleanup
 echo -e "\n${YELLOW}Cleaning up test files...${NC}"
-rm -f /tmp/*.json
+#rm -f /tmp/*.json
 
 # Summary
 echo -e "\n${BLUE}======================================${NC}"
