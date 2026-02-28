@@ -126,6 +126,9 @@ func (q *TaskQueue) EnqueueTranscodeTask(ctx context.Context, task *TranscodeTas
 
 // DequeueTranscodeTask 从队列获取任务
 func (q *TaskQueue) DequeueTranscodeTask(ctx context.Context) (*TranscodeTask, error) {
+	// 首先尝试创建消费者组（如果不存在）
+	q.client.XGroupCreateMkStream(ctx, q.config.QueueName, "transcode_workers", "0")
+
 	// 使用 XREADGROUP 消费消息组
 	result, err := q.client.XReadGroup(ctx, &redis.XReadGroupArgs{
 		Group:    "transcode_workers",
