@@ -35,6 +35,15 @@ type Video struct {
     Description  string `gorm:"type:varchar(500);default:''" json:"description"`
     CoverPath    string `gorm:"type:varchar(255);default:''" json:"cover_path"`
     ViewCount    int64  `gorm:"not null;default:0" json:"view_count"`
+    LikeCount    int64  `gorm:"not null;default:0" json:"like_count"`
+}
+
+// VideoLike 记录「谁点赞了哪个视频」，(user_id, video_uuid) 组合唯一，
+// 使重复点赞天然幂等；videos.like_count 是该表的冗余计数，用于列表展示。
+type VideoLike struct {
+    BaseModel
+    UserID    uint   `gorm:"not null;uniqueIndex:idx_user_video" json:"user_id"`
+    VideoUUID string `gorm:"not null;type:varchar(255);uniqueIndex:idx_user_video" json:"video_uuid"`
 }
 
 type Comment struct {

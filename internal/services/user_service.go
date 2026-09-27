@@ -178,6 +178,28 @@ func (s *UserService) DeleteUser(id uint) error {
             return fmt.Errorf("failed to delete user comments: %w", err)
         }
 
+        // 该账号的点赞关系随账号删除，并同步修正受影响视频的冗余计数。
+        var likes []models.VideoLike
+        if err := tx.Unscoped().Select("video_uuid").Where("user_id = ?", id).Find(&likes).Error; err != nil {
+            return fmt.Errorf("failed to load user likes: %w", err)
+        }
+        if err := tx.Unscoped().Where("user_id = ?", id).Delete(&models.VideoLike{}).Error; err != nil {
+            return fmt.Errorf("failed to delete user likes: %w", err)
+        }
+        for _, like := range likes {
+            if err := tx.Model(&models.Video{}).Where("uuid = ?", like.VideoUUID).
+                UpdateColumn("like_count", gorm.Expr("CASE WHEN like_count > 0 THEN like_count - 1 ELSE 0 END")).Error; err != nil {
+                return fmt.Errorf("failed to update video like count: %w", err)
+            }
+        }
+
+        // 他人在这些视频上的点赞同样随视频一起清理，避免留下孤儿关系。
+        if len(videoUUIDs) > 0 {
+            if err := tx.Unscoped().Where("video_uuid IN ?", videoUUIDs).Delete(&models.VideoLike{}).Error; err != nil {
+                return fmt.Errorf("failed to delete likes on user videos: %w", err)
+            }
+        }
+
         // 视频标记为 deleted 后软删除，并留下去重后的删除台账。
         if err := tx.Model(&models.Video{}).Where("author_id = ?", id).
             Update("status", "deleted").Error; err != nil {

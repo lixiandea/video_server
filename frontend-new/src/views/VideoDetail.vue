@@ -40,7 +40,7 @@
             </div>
             
             <div class="video-actions d-flex gap-2 mb-3">
-              <button class="btn btn-primary" @click="toggleLike">
+              <button class="btn btn-primary" :disabled="liking" @click="toggleLike">
                 <i :class="isLiked ? 'bi bi-hand-thumbs-up-fill' : 'bi bi-hand-thumbs-up'"></i>
                 {{ likeCount }}
               </button>
@@ -174,6 +174,7 @@ const videoUrl = ref('')
 const streamError = ref('')
 const likeCount = ref(0)
 const isLiked = ref(false)
+const liking = ref(false)
 const newComment = ref('')
 const submitting = ref(false)
 const comments = ref([])
@@ -193,6 +194,7 @@ async function loadVideoDetail() {
   try {
     const data = await videoStore.fetchVideoDetail(videoId.value)
     likeCount.value = data.like_count || 0
+    isLiked.value = !!data.liked
     await loadStreamUrl()
   } catch (err) {
     console.error('Failed to load video:', err)
@@ -242,14 +244,26 @@ function onPlayerError(error) {
   console.error('Player error:', error)
 }
 
-function toggleLike() {
+// 点赞 / 取消点赞都走幂等接口，计数以服务端返回为准
+async function toggleLike() {
   if (!isLoggedIn.value) {
     router.push(`/login?redirect=/video/${videoId.value}`)
     return
   }
-  // TODO: Implement like API
-  isLiked.value = !isLiked.value
-  likeCount.value += isLiked.value ? 1 : -1
+  if (liking.value) return
+
+  liking.value = true
+  try {
+    const response = isLiked.value
+      ? await videoApi.unlikeVideo(videoId.value)
+      : await videoApi.likeVideo(videoId.value)
+    isLiked.value = !!response.data.liked
+    likeCount.value = response.data.like_count ?? likeCount.value
+  } catch (err) {
+    console.error('Failed to toggle like:', err)
+  } finally {
+    liking.value = false
+  }
 }
 
 async function submitComment() {

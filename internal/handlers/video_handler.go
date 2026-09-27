@@ -25,6 +25,7 @@ import (
 
 type VideoHandler struct {
     videoService   *services.VideoService
+    likeService    *services.LikeService
     storageService *storage.StorageService
     transcodeService *services.TranscodeService
     taskQueue      *queue.TaskQueue
@@ -35,6 +36,7 @@ func NewVideoHandler(storageService *storage.StorageService, cfg *config.Config,
     transcodeService *services.TranscodeService, taskQueue *queue.TaskQueue) *VideoHandler {
     return &VideoHandler{
         videoService:     services.NewVideoService(),
+        likeService:      services.NewLikeService(),
         storageService:   storageService,
         transcodeService: transcodeService,
         taskQueue:        taskQueue,
@@ -220,6 +222,18 @@ func (h *VideoHandler) GetVideoInfo(c *gin.Context) {
         return
     }
 
+    // 当前用户的点赞状态；读取失败不影响内容展示
+    liked := false
+    if userID, ok := c.Get("user_id"); ok {
+        if isLiked, err := h.likeService.IsLiked(userID.(uint), video.UUID); err != nil {
+            logging.GetLogger().Warn("Failed to load like status",
+                zap.String("video_id", video.UUID),
+                zap.Error(err))
+        } else {
+            liked = isLiked
+        }
+    }
+
     c.JSON(http.StatusOK, gin.H{
         "video_id":     video.UUID,
         "name":         video.Name,
@@ -231,6 +245,8 @@ func (h *VideoHandler) GetVideoInfo(c *gin.Context) {
         "size":         video.Size,
         "duration":     video.Duration,
         "view_count":   video.ViewCount,
+        "like_count":   video.LikeCount,
+        "liked":        liked,
         "status":       video.Status,
         "created_at":   video.CreatedAt,
     })
@@ -244,6 +260,45 @@ func coverURL(video *models.Video) string {
     }
 
     return "/api/v1/videos/" + video.UUID + "/cover"
+}
+
+// LikeVideo 点赞（幂等）：重复点赞不会重复计数。
+func (h *VideoHandler) LikeVideo(c *gin.Context) {
+    h.updateLike(c, true)
+}
+
+// UnlikeVideo 取消点赞（幂等）。
+func (h *VideoHandler) UnlikeVideo(c *gin.Context) {
+    h.updateLike(c, false)
+}
+
+func (h *VideoHandler) updateLike(c *gin.Context, like bool) {
+    userID, exists := c.Get("user_id")
+    if !exists {
+        utils.Fail(c, http.StatusUnauthorized, "Unauthorized")
+        return
+    }
+
+    videoID := c.Param("video_id")
+
+    var (
+        count int64
+        err   error
+    )
+    if like {
+        count, err = h.likeService.Like(userID.(uint), videoID)
+    } else {
+        count, err = h.likeService.Unlike(userID.(uint), videoID)
+    }
+    if err != nil {
+        utils.FailFrom(c, err, "Failed to update like")
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "liked":      like,
+        "like_count": count,
+    })
 }
 
 // GetVideoCover 提供封面图片，供前端 <img> 直接引用。
@@ -300,6 +355,7 @@ func videoListItem(video *models.Video, authorName string) map[string]interface{
         "size":         video.Size,
         "duration":     video.Duration,
         "view_count":   video.ViewCount,
+        "like_count":   video.LikeCount,
         "status":       video.Status,
         "created_at":   video.CreatedAt,
     }

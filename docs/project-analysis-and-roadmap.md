@@ -592,6 +592,38 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 
 **遗留**：封面为单张 JPEG，未生成多分辨率缩略图，且封面接口对外公开；`view_count` 在打开详情页时累加（需登录），未按用户去重。
 
+### 5.22 P1-11c 点赞实施记录（2026-09-27）
+
+**改动**
+
+| 文件 | 改动 |
+| --- | --- |
+| `internal/models/models.go` | 新增 `VideoLike`（`(user_id, video_uuid)` 组合唯一索引，重复点赞天然幂等）；`Video` 新增冗余计数 `LikeCount` |
+| `pkg/database/database.go` | 迁移表新增 `video_likes` |
+| `internal/services/like_service.go`（新增） | `Like` / `Unlike` / `IsLiked` / `LikeCount`：关系表与计数在同一事务内更新，先校验视频存在，全部幂等；写后失效视频缓存 |
+| `internal/handlers/video_handler.go` | 详情返回 `like_count`/`liked`，列表项返回 `like_count`；新增 `LikeVideo` / `UnlikeVideo` |
+| `cmd/api-server/main.go` | 新增 `POST /videos/:video_id/like` 与 `DELETE /videos/:video_id/like` |
+| `internal/services/user_service.go` | 注销级联追加：删除该用户的点赞关系并修正计数，同时清理其视频上他人的点赞 |
+| `frontend-new/src/api/video.js`、`views/VideoDetail.vue` | `toggleLike` 改调真实接口，计数以服务端返回为准（原为本地自增的 TODO） |
+
+**验收结果**（重建 api-server 后执行）
+
+| 场景 | 结果 |
+| --- | --- |
+| 点赞 / 取消点赞 | ✅ 200，`{liked, like_count}` |
+| 重复点赞、重复取消 | ✅ 幂等，计数不漂移 |
+| 详情 `liked` / `like_count`、列表 `like_count` | ✅ 与 DB 一致 |
+| 未登录点赞 / 视频不存在 | ✅ 401 / 404 |
+| 两人点赞 | ✅ `like_count = 2` |
+| 注销作者 / 注销点赞者 | ✅ 关系与计数均正确清理 |
+| 专项验收脚本（22 项） | ✅ 22 PASS / 0 FAIL |
+| P1-7 级联验收回归 | ✅ 22 PASS / 0 FAIL |
+| `test-api.sh` 回归 | ✅ 13/13 |
+| `go build ./...` / `go vet ./...` | ✅ 通过 |
+| `cd frontend-new && npx vitest run` | ✅ 3 文件 / 22 用例 |
+
+**遗留**：点赞接口未做频率限制与防刷（仅依赖全局 IP 限流）；历史视频的 `like_count` 无对账任务，若有漂移只能靠 `video_likes` 重算。
+
 ## 6. 实施约定
 
 - 一次只推进一个任务，独立提交，保持可回滚。
@@ -618,7 +650,7 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 - [x] P1-8 统一 DDL 与模型（`init.sql` 仅引导 `users`，逐表迁移容错）
 - [x] P1-9 串行化启动迁移（MySQL `GET_LOCK`）
 - [x] P1-10 队列统计容错（`NOGROUP` → pending=0）
-- [ ] P1-11 扩展视频/用户字段（拆分推进：**P1-11a 用户 email/bio ✅、P1-11b 视频封面/播放量/时长/简介 ✅ 已完成**；P1-11c 点赞 待办）
+- [x] P1-11 扩展视频/用户字段（分三批完成：P1-11a 用户 email/bio、P1-11b 视频封面/播放量/时长/简介、P1-11c 点赞关系与计数）
 - [ ] P2-1 合并 cmd/worker
 - [ ] P2-2 前端收敛与产物出库
 - [ ] P2-3 限流器淘汰与可观测性加固

@@ -163,6 +163,8 @@ func main() {
 		protected.GET("/videos/:video_id/stream-token", videoHandler.CreateStreamToken)
 		protected.GET("/users/videos", videoHandler.GetUserVideos)
 		protected.DELETE("/videos/:video_id", videoHandler.DeleteVideo)
+		protected.POST("/videos/:video_id/like", videoHandler.LikeVideo)
+		protected.DELETE("/videos/:video_id/like", videoHandler.UnlikeVideo)
 
 		// Comment routes
 		protected.POST("/videos/:video_id/comments", commentHandler.AddComment)

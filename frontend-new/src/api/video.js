@@ -20,6 +20,15 @@ const videoApi = {
     return apiClient.get(`/videos/${id}`)
   },
 
+  // 点赞 / 取消点赞，两个接口都幂等，返回 {liked, like_count}
+  likeVideo(id) {
+    return apiClient.post(`/videos/${id}/like`)
+  },
+
+  unlikeVideo(id) {
+    return apiClient.delete(`/videos/${id}/like`)
+  },
+
   // 换取短时效播放令牌（<video src> 无法携带 Authorization 头）
   getStreamToken(id) {
     return apiClient.get(`/videos/${id}/stream-token`)
