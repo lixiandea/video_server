@@ -44,7 +44,7 @@ func ErrorLoggingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Process request
 		c.Next()
-		
+
 		// Log errors if any occurred
 		if len(c.Errors) > 0 {
 			for _, err := range c.Errors {
@@ -64,7 +64,7 @@ func DatabaseLoggingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// This middleware can be enhanced to track database operations
 		// by wrapping the database calls or using database hooks
-		
+
 		// For now, we'll just pass through
 		c.Next()
 	}
@@ -74,12 +74,12 @@ func DatabaseLoggingMiddleware() gin.HandlerFunc {
 func PerformanceMonitoringMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		
+
 		// Process request
 		c.Next()
-		
+
 		duration := time.Since(start)
-		
+
 		// Log slow requests (> 1 second)
 		if duration > time.Second {
 			logging.Warn("Slow request detected",

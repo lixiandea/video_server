@@ -39,7 +39,7 @@ func main() {
 		ReadTimeout:  time.Duration(cfg.Redis.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(cfg.Redis.WriteTimeout) * time.Second,
 	}
-	
+
 	if err := redis.InitRedis(redisCfg); err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}

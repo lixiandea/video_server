@@ -61,7 +61,7 @@ func InitLogger(level string, outputPath string) error {
 
 	// Add caller skip to properly show the calling function
 	logger = logger.WithOptions(zap.AddCallerSkip(1))
-	
+
 	return nil
 }
 
@@ -118,11 +118,11 @@ func LogRequest(method, path string, statusCode int, duration time.Duration, use
 		zap.Duration("duration", duration),
 		zap.Time("timestamp", time.Now()),
 	}
-	
+
 	if userID != nil {
 		fields = append(fields, zap.Any("user_id", userID))
 	}
-	
+
 	if statusCode >= 500 {
 		Error("HTTP request failed", fields...)
 	} else if statusCode >= 400 {
@@ -139,7 +139,7 @@ func LogDBOperation(operation string, duration time.Duration, err error) {
 		zap.Duration("duration", duration),
 		zap.Time("timestamp", time.Now()),
 	}
-	
+
 	if err != nil {
 		fields = append(fields, zap.Error(err))
 		Error("Database operation failed", fields...)
@@ -155,10 +155,10 @@ func LogBusinessOperation(operation string, userID uint, details map[string]inte
 		zap.Uint("user_id", userID),
 		zap.Time("timestamp", time.Now()),
 	}
-	
+
 	for key, value := range details {
 		fields = append(fields, zap.Any(key, value))
 	}
-	
+
 	Info("Business operation completed", fields...)
 }

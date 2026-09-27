@@ -15,7 +15,7 @@ func RequestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 尝试从请求头获取 Request-ID
 		requestID := c.GetHeader(RequestIDKey)
-		
+
 		// 如果没有，则生成新的 UUID
 		if requestID == "" {
 			requestID = uuid.New().String()

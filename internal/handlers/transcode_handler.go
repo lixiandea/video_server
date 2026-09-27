@@ -62,13 +62,13 @@ func (h *TranscodeHandler) GetQueueStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"queue_length":      stats.QueueLength,
-		"pending_count":     stats.PendingCount,
-		"processing_count":  stats.ProcessingCount,
-		"completed_count":   stats.CompletedCount,
-		"failed_count":      stats.FailedCount,
-		"total_tasks":       stats.TotalTasks,
-		"worker_name":       "transcode_worker",
+		"queue_length":     stats.QueueLength,
+		"pending_count":    stats.PendingCount,
+		"processing_count": stats.ProcessingCount,
+		"completed_count":  stats.CompletedCount,
+		"failed_count":     stats.FailedCount,
+		"total_tasks":      stats.TotalTasks,
+		"worker_name":      "transcode_worker",
 	})
 }
 
@@ -95,9 +95,9 @@ func (h *TranscodeHandler) ListTasks(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"total": stats.TotalTasks,
-		"page":  page,
-		"limit": limit,
+		"total":       stats.TotalTasks,
+		"page":        page,
+		"limit":       limit,
 		"queue_stats": stats,
 	})
 }

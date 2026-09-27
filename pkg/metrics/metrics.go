@@ -182,10 +182,10 @@ var (
 func MetricsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		
+
 		// Process request
 		c.Next()
-		
+
 		// Record metrics after request is processed
 		duration := time.Since(start).Seconds()
 		status := strconv.Itoa(c.Writer.Status())
@@ -193,18 +193,18 @@ func MetricsMiddleware() gin.HandlerFunc {
 		if endpoint == "" {
 			endpoint = c.Request.URL.Path
 		}
-		
+
 		// Increment request counter
 		httpRequestsTotal.WithLabelValues(c.Request.Method, endpoint, status).Inc()
-		
+
 		// Record request duration
 		httpRequestDuration.WithLabelValues(c.Request.Method, endpoint).Observe(duration)
-		
+
 		// Record request/response sizes
 		if c.Request.ContentLength > 0 {
 			httpRequestBodySize.WithLabelValues(c.Request.Method, endpoint).Observe(float64(c.Request.ContentLength))
 		}
-		
+
 		if c.Writer.Size() > 0 {
 			httpResponseBodySize.WithLabelValues(c.Request.Method, endpoint).Observe(float64(c.Writer.Size()))
 		}
@@ -280,10 +280,10 @@ func ObserveDBQueryDuration(table, operation string, duration time.Duration) {
 func CollectSystemMetrics() {
 	// This would typically be called from a goroutine that runs periodically
 	// For now, we'll just collect basic runtime metrics
-	
+
 	// Collect goroutine count
 	// goRoutines.Set(float64(runtime.NumGoroutine()))
-	
+
 	// Collect memory stats
 	// var m runtime.MemStats
 	// runtime.ReadMemStats(&m)

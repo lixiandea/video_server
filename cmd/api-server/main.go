@@ -69,7 +69,7 @@ func main() {
 	redisClient := redis.GetClient()
 	var taskQueue *queue.TaskQueue
 	var transcodeService *services.TranscodeService
-	
+
 	if redisClient != nil {
 		taskQueue = queue.NewTaskQueue(redisClient, queue.DefaultQueueConfig)
 		transcodeService = services.NewTranscodeService(taskQueue, cfg.Storage.VideoDir)

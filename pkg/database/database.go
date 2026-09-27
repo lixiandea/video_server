@@ -99,10 +99,10 @@ func InitDatabase(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database instance: %w", err)
 	}
-	
+
 	// Optimized connection pool settings
-	sqlDB.SetMaxIdleConns(25)           // Increased idle connections for better concurrency
-	sqlDB.SetMaxOpenConns(200)          // Increased max connections for high load
+	sqlDB.SetMaxIdleConns(25)                  // Increased idle connections for better concurrency
+	sqlDB.SetMaxOpenConns(200)                 // Increased max connections for high load
 	sqlDB.SetConnMaxLifetime(30 * time.Minute) // Reduced lifetime to prevent stale connections
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)  // Close idle connections after 5 minutes
 
@@ -203,7 +203,7 @@ func WithTracing(ctx context.Context, tableName, operation string) (context.Cont
 	ctx, span := tracing.StartSpanFromContext(ctx, fmt.Sprintf("db.%s.%s", tableName, operation))
 	tracing.AddSpanAttribute(ctx, "db.table", tableName)
 	tracing.AddSpanAttribute(ctx, "db.operation", operation)
-	
+
 	startTime := time.Now()
 	return ctx, func() {
 		defer span.End()
@@ -216,7 +216,7 @@ func WithTracing(ctx context.Context, tableName, operation string) (context.Cont
 func collectDBMetrics(sqlDB *sql.DB) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:

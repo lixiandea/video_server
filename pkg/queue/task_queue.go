@@ -28,10 +28,10 @@ const (
 type TaskStatus string
 
 const (
-	TaskStatusPending   TaskStatus = "pending"
+	TaskStatusPending    TaskStatus = "pending"
 	TaskStatusProcessing TaskStatus = "processing"
-	TaskStatusCompleted TaskStatus = "completed"
-	TaskStatusFailed    TaskStatus = "failed"
+	TaskStatusCompleted  TaskStatus = "completed"
+	TaskStatusFailed     TaskStatus = "failed"
 )
 
 // transcodeConsumerGroup 是转码队列唯一的消费者组名，读消息、确认与回收共用。
@@ -45,7 +45,7 @@ type TranscodeTask struct {
 	TargetFormat string     `json:"target_format"`
 	Quality      string     `json:"quality"` // low, medium, high
 	Status       TaskStatus `json:"status"`
-	Progress     int        `json:"progress"` // 0-100
+	Progress     int        `json:"progress"`          // 0-100
 	Retries      int        `json:"retries,omitempty"` // 已重试次数
 	Error        string     `json:"error,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
@@ -56,8 +56,8 @@ type TranscodeTask struct {
 
 // QueueConfig 队列配置
 type QueueConfig struct {
-	QueueName     string
-	MaxRetries    int
+	QueueName         string
+	MaxRetries        int
 	VisibilityTimeout time.Duration
 }
 
@@ -115,11 +115,11 @@ func (q *TaskQueue) EnqueueTranscodeTask(ctx context.Context, task *TranscodeTas
 	err = q.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: q.config.QueueName,
 		Values: map[string]interface{}{
-			"task_id":      task.TaskID,
-			"data":         string(data),
-			"status":       string(task.Status),
-			"retries":      task.Retries,
-			"created_at":   task.CreatedAt.Format(time.RFC3339),
+			"task_id":    task.TaskID,
+			"data":       string(data),
+			"status":     string(task.Status),
+			"retries":    task.Retries,
+			"created_at": task.CreatedAt.Format(time.RFC3339),
 		},
 	}).Err()
 
@@ -350,12 +350,12 @@ func (q *TaskQueue) GetQueueStats(ctx context.Context) (*QueueStats, error) {
 	}
 
 	return &QueueStats{
-		QueueLength:  int(length),
-		PendingCount: pendingCount,
+		QueueLength:     int(length),
+		PendingCount:    pendingCount,
 		ProcessingCount: processing,
-		CompletedCount: completed,
-		FailedCount:  failed,
-		TotalTasks:   len(keys),
+		CompletedCount:  completed,
+		FailedCount:     failed,
+		TotalTasks:      len(keys),
 	}, nil
 }
 
