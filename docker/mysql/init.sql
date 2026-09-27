@@ -1,85 +1,25 @@
 -- 初始化视频服务数据库
+-- 说明：仅负责创建数据库与 users 基础表；其余业务表（videos/comments/sessions/
+-- video_deletion_records）由应用启动时的 GORM AutoMigrate 按 internal/models 定义创建，
+-- 避免手工 DDL 与模型不一致导致迁移中断（历史缺陷：video_deletion_records 缺失）。
 
 CREATE DATABASE IF NOT EXISTS video_server CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 USE video_server;
 
--- 用户表
+-- 用户表（字段与 internal/models.User 保持一致）
 CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    login_name VARCHAR(255) UNIQUE NOT NULL,
-    pwd VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--- 视频信息表
-CREATE TABLE IF NOT EXISTS video_info (
-    id VARCHAR(255) PRIMARY KEY,
-    author_id INT NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    display_ctime VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (author_id) REFERENCES users(id)
-);
-
--- 评论表
-CREATE TABLE IF NOT EXISTS comments (
-    id VARCHAR(255) PRIMARY KEY,
-    author_id INT NOT NULL,
-    video_id VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL,
-    time VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (author_id) REFERENCES users(id),
-    FOREIGN KEY (video_id) REFERENCES video_info(id)
-);
-
--- 会话表
-CREATE TABLE IF NOT EXISTS sessions (
-    session_id VARCHAR(255) PRIMARY KEY,
-    TTL BIGINT,
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    created_at DATETIME(3) NULL,
+    updated_at DATETIME(3) NULL,
+    deleted_at DATETIME(3) NULL,
     login_name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    pwd VARCHAR(255) NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uni_users_login_name (login_name),
+    KEY idx_users_deleted_at (deleted_at)
 );
 
--- 视频删除记录表
-CREATE TABLE IF NOT EXISTS video_del_rec (
-    id VARCHAR(255) PRIMARY KEY,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 插入默认管理员用户
-INSERT IGNORE INTO users (login_name, pwd) VALUES ('admin', '$2a$14$E7uTR7u/.PQp9O0HObpEpO1GxbFKJr2NcU7UN.a8P1.B.3q0/Xt5.');
-
--- 注意：GORM 不使用外键约束，因此不创建外键
--- 应用层通过代码逻辑保证数据完整性
-
--- 创建索引优化查询性能
--- 视频表索引
-CREATE INDEX idx_video_author ON video_info(author_id);
-CREATE INDEX idx_video_created_at ON video_info(created_at DESC);
-CREATE INDEX idx_video_status ON video_info(status);
-CREATE INDEX idx_video_author_status ON video_info(author_id, status);
-CREATE INDEX idx_video_author_created ON video_info(author_id, created_at DESC);
-
--- 评论表索引
-CREATE INDEX idx_comments_video ON comments(video_id);
-CREATE INDEX idx_comments_author ON comments(author_id);
-CREATE INDEX idx_comments_created ON comments(created_at DESC);
-CREATE INDEX idx_comments_video_created ON comments(video_id, created_at DESC);
-
--- 用户表索引
-CREATE INDEX idx_users_login_name ON users(login_name);
-CREATE INDEX idx_users_created ON users(created_at);
-
--- 会话表索引
-CREATE INDEX idx_sessions_login_name ON sessions(login_name);
-CREATE INDEX idx_sessions_ttl ON sessions(TTL);
-
--- 视频删除记录表索引
-CREATE INDEX idx_del_rec_video_uuid ON video_del_rec(video_uuid);
-CREATE INDEX idx_del_rec_created ON video_del_rec(created_at);
+-- 默认管理员账号（密码请在生产环境通过 /api/v1/users/register 重新创建并轮换）
+INSERT IGNORE INTO users (login_name, pwd, created_at, updated_at)
+VALUES ('admin', '$2a$14$E7uTR7u/.PQp9O0HObpEpO1GxbFKJr2NcU7UN.a8P1.B.3q0/Xt5.', NOW(3), NOW(3));
