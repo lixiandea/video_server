@@ -8,6 +8,7 @@ import (
     "github.com/google/uuid"
     "github.com/lixiandea/video_server/internal/models"
     "github.com/lixiandea/video_server/pkg/database"
+    apperrors "github.com/lixiandea/video_server/pkg/errors"
     "gorm.io/gorm"
 )
 
@@ -45,7 +46,7 @@ func (s *CommentService) GetCommentByID(commentID string) (*models.Comment, erro
     var comment models.Comment
     result := s.db.First(&comment, "uuid = ?", commentID)
     if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-        return nil, fmt.Errorf("comment not found")
+        return nil, apperrors.NotFoundf("comment not found")
     }
     if result.Error != nil {
         return nil, fmt.Errorf("database error: %w", result.Error)
@@ -54,18 +55,25 @@ func (s *CommentService) GetCommentByID(commentID string) (*models.Comment, erro
     return &comment, nil
 }
 
-func (s *CommentService) GetCommentsByVideoID(videoID string, limit, offset int) ([]*models.Comment, error) {
+// GetCommentsByVideoIDWithTotal 返回分页评论与真实总数（总数用于前端分页，不能取当前页条数）。
+func (s *CommentService) GetCommentsByVideoIDWithTotal(videoID string, limit, offset int) ([]*models.Comment, int64, error) {
     var comments []*models.Comment
+    var total int64
+
+    if err := s.db.Model(&models.Comment{}).Where("video_id = ?", videoID).Count(&total).Error; err != nil {
+        return nil, 0, fmt.Errorf("failed to count comments: %w", err)
+    }
+
     result := s.db.Where("video_id = ?", videoID).
         Limit(limit).Offset(offset).
         Order("created_at ASC").
         Find(&comments)
-        
+
     if result.Error != nil {
-        return nil, fmt.Errorf("database error: %w", result.Error)
+        return nil, 0, fmt.Errorf("database error: %w", result.Error)
     }
 
-    return comments, nil
+    return comments, total, nil
 }
 
 func (s *CommentService) UpdateComment(commentID string, updates map[string]interface{}) error {
@@ -74,7 +82,7 @@ func (s *CommentService) UpdateComment(commentID string, updates map[string]inte
         return fmt.Errorf("failed to update comment: %w", result.Error)
     }
     if result.RowsAffected == 0 {
-        return fmt.Errorf("comment not found")
+        return apperrors.NotFoundf("comment not found")
     }
 
     return nil
@@ -94,7 +102,7 @@ func (s *CommentService) GetUserByID(userID uint) (*models.User, error) {
     var user models.User
     result := s.db.First(&user, "id = ?", userID)
     if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-        return nil, fmt.Errorf("user not found")
+        return nil, apperrors.NotFoundf("user not found")
     }
     if result.Error != nil {
         return nil, fmt.Errorf("database error: %w", result.Error)

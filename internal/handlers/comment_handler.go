@@ -2,10 +2,10 @@ package handlers
 
 import (
     "net/http"
-    "strconv"
-    
+
     "github.com/gin-gonic/gin"
     "github.com/lixiandea/video_server/internal/services"
+    "github.com/lixiandea/video_server/internal/utils"
 )
 
 type CommentHandler struct {
@@ -23,13 +23,13 @@ func NewCommentHandler() *CommentHandler {
 func (h *CommentHandler) AddComment(c *gin.Context) {
     userID, exists := c.Get("user_id")
     if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+        utils.Fail(c, http.StatusUnauthorized, "Unauthorized")
         return
     }
 
     videoIDStr := c.Param("video_id")
     if videoIDStr == "" {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Video ID is required"})
+        utils.Fail(c, http.StatusBadRequest, "Video ID is required")
         return
     }
 
@@ -38,30 +38,30 @@ func (h *CommentHandler) AddComment(c *gin.Context) {
     }
 
     if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+        utils.Fail(c, http.StatusBadRequest, "Invalid request format")
         return
     }
 
     // Validate content
     if len(req.Content) == 0 || len(req.Content) > 1000 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Content must be between 1 and 1000 characters"})
+        utils.Fail(c, http.StatusBadRequest, "Content must be between 1 and 1000 characters")
         return
     }
 
     // Check if video exists and is active
     video, err := h.videoService.GetVideoByID(videoIDStr)
     if err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+        utils.FailFrom(c, err, "Video not found")
         return
     }
     if video.Status != "active" {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+        utils.Fail(c, http.StatusNotFound, "Video not found")
         return
     }
 
     comment, err := h.commentService.AddComment(videoIDStr, userID.(uint), req.Content)
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add comment"})
+        utils.FailFrom(c, err, "Failed to add comment")
         return
     }
 
@@ -76,59 +76,48 @@ func (h *CommentHandler) AddComment(c *gin.Context) {
 func (h *CommentHandler) GetComments(c *gin.Context) {
     videoIDStr := c.Param("video_id")
     if videoIDStr == "" {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Video ID is required"})
+        utils.Fail(c, http.StatusBadRequest, "Video ID is required")
         return
     }
 
-    // Get pagination params
-    pageStr := c.DefaultQuery("page", "1")
-    limitStr := c.DefaultQuery("limit", "10")
-    
-    page, err := strconv.Atoi(pageStr)
-    if err != nil || page < 1 {
-        page = 1
-    }
-    
-    limit, err := strconv.Atoi(limitStr)
-    if err != nil || limit < 1 || limit > 100 {
-        limit = 10
-    }
-
-    offset := (page - 1) * limit
+    page, limit, offset := parsePagination(c)
 
     // Check if video exists and is active
     video, err := h.videoService.GetVideoByID(videoIDStr)
     if err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+        utils.FailFrom(c, err, "Video not found")
         return
     }
     if video.Status != "active" {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Video not found"})
+        utils.Fail(c, http.StatusNotFound, "Video not found")
         return
     }
 
-    comments, err := h.commentService.GetCommentsByVideoID(videoIDStr, limit, offset)
+    comments, total, err := h.commentService.GetCommentsByVideoIDWithTotal(videoIDStr, limit, offset)
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get comments"})
+        utils.FailFrom(c, err, "Failed to get comments")
         return
     }
 
-    // Convert to response format
+    // 批量取作者名，避免每条评论一次查询（N+1）
+    authorIDs := make([]uint, 0, len(comments))
+    for _, comment := range comments {
+        authorIDs = append(authorIDs, comment.AuthorID)
+    }
+    authorNames, err := h.videoService.GetAuthorNames(authorIDs)
+    if err != nil {
+        utils.FailFrom(c, err, "Failed to get comment authors")
+        return
+    }
+
     commentList := make([]map[string]interface{}, len(comments))
     for i, comment := range comments {
-        // 获取作者信息
-        author, err := h.commentService.GetUserByID(comment.AuthorID)
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get comment author"})
-            return
-        }
-
         commentList[i] = map[string]interface{}{
-            "comment_id": comment.UUID,
-            "author_id":  comment.AuthorID,
-            "author_name": author.LoginName,
-            "content":    comment.Content,
-            "created_at": comment.CreatedAt,
+            "comment_id":  comment.UUID,
+            "author_id":   comment.AuthorID,
+            "author_name": authorNames[comment.AuthorID],
+            "content":     comment.Content,
+            "created_at":  comment.CreatedAt,
         }
     }
 
@@ -136,7 +125,7 @@ func (h *CommentHandler) GetComments(c *gin.Context) {
         "comments": commentList,
         "page":     page,
         "limit":    limit,
-        "total":    len(commentList), // In a real app, you'd want to return actual total count
+        "total":    total,
     })
 }
 
@@ -145,14 +134,14 @@ func (h *CommentHandler) GetComment(c *gin.Context) {
 
     comment, err := h.commentService.GetCommentByID(commentID)
     if err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Comment not found"})
+        utils.FailFrom(c, err, "Comment not found")
         return
     }
 
     // 获取作者信息
     author, err := h.commentService.GetUserByID(comment.AuthorID)
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get comment author"})
+        utils.FailFrom(c, err, "Failed to get comment author")
         return
     }
 
@@ -169,7 +158,7 @@ func (h *CommentHandler) GetComment(c *gin.Context) {
 func (h *CommentHandler) UpdateComment(c *gin.Context) {
     userID, exists := c.Get("user_id")
     if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+        utils.Fail(c, http.StatusUnauthorized, "Unauthorized")
         return
     }
 
@@ -180,25 +169,25 @@ func (h *CommentHandler) UpdateComment(c *gin.Context) {
     }
 
     if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+        utils.Fail(c, http.StatusBadRequest, "Invalid request format")
         return
     }
 
     // Validate content
     if len(req.Content) == 0 || len(req.Content) > 1000 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Content must be between 1 and 1000 characters"})
+        utils.Fail(c, http.StatusBadRequest, "Content must be between 1 and 1000 characters")
         return
     }
 
     // Get the comment to check ownership
     comment, err := h.commentService.GetCommentByID(commentID)
     if err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Comment not found"})
+        utils.FailFrom(c, err, "Comment not found")
         return
     }
 
     if comment.AuthorID != userID.(uint) {
-        c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized to update this comment"})
+        utils.Fail(c, http.StatusForbidden, "Not authorized to update this comment")
         return
     }
 
@@ -208,7 +197,7 @@ func (h *CommentHandler) UpdateComment(c *gin.Context) {
 
     err = h.commentService.UpdateComment(commentID, updates)
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update comment"})
+        utils.FailFrom(c, err, "Failed to update comment")
         return
     }
 
@@ -218,7 +207,7 @@ func (h *CommentHandler) UpdateComment(c *gin.Context) {
 func (h *CommentHandler) DeleteComment(c *gin.Context) {
     userID, exists := c.Get("user_id")
     if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+        utils.Fail(c, http.StatusUnauthorized, "Unauthorized")
         return
     }
 
@@ -227,18 +216,18 @@ func (h *CommentHandler) DeleteComment(c *gin.Context) {
     // Get the comment to check ownership
     comment, err := h.commentService.GetCommentByID(commentID)
     if err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Comment not found"})
+        utils.FailFrom(c, err, "Comment not found")
         return
     }
 
     if comment.AuthorID != userID.(uint) {
-        c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized to delete this comment"})
+        utils.Fail(c, http.StatusForbidden, "Not authorized to delete this comment")
         return
     }
 
     err = h.commentService.DeleteComment(commentID)
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete comment"})
+        utils.FailFrom(c, err, "Failed to delete comment")
         return
     }
 
