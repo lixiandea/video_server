@@ -1,0 +1,24 @@
+# 构建上下文裁剪：避免把 200MB+ 的 node_modules / 密钥 / 文档送进 Docker
+.git
+.gitignore
+.github
+.env
+.env.*
+!.env.example
+bin
+storage
+docs
+tmp
+*.md
+**/*.md
+
+# 前端依赖与产物（由各前端 Dockerfile 内部自行安装/构建）
+frontend-new/node_modules
+frontend-new/dist
+frontend/node_modules
+frontend-vue/node_modules
+
+# 测试与临时文件
+*.log
+*.out
+*.test

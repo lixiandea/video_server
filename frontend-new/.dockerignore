@@ -1,0 +1,8 @@
+# 前端构建上下文裁剪（node_modules 由 npm ci 在镜像内安装）
+node_modules
+dist
+.env
+.env.*
+!.env.example
+*.log
+*.md

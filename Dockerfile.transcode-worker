@@ -1,8 +1,9 @@
 # Multi-stage build for transcode worker
 FROM golang:1.21-alpine AS builder
 
-# Install git and ffmpeg for go modules and transcoding
-RUN apk add --no-cache git ffmpeg
+# Install git for go modules (ffmpeg is only needed at runtime, installed in the final stage)
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
+    && apk add --no-cache git
 
 WORKDIR /app
 
@@ -23,9 +24,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o transcode-worker 
 FROM alpine:latest
 
 # Install ca-certificates and ffmpeg for HTTPS and transcoding
-RUN apk --no-cache add ca-certificates ffmpeg
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
+    && apk --no-cache add ca-certificates ffmpeg
 
-WORKDIR /root/
+WORKDIR /app
 
 # Copy the binary from builder stage
 COPY --from=builder /app/transcode-worker .
