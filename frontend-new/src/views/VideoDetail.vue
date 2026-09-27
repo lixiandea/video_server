@@ -4,14 +4,16 @@
       <div class="row">
         <div class="col-lg-8">
           <!-- Video Player -->
+          <div v-if="streamError" class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> {{ streamError }}
+          </div>
+
           <div class="video-player-section mb-4">
             <VideoPlayer
               v-if="videoUrl"
               ref="playerRef"
               :src="videoUrl"
-              :poster="currentVideo?.cover_url"
               :autoPlay="true"
-              :qualities="availableQualities"
               @ready="onPlayerReady"
               @error="onPlayerError"
             />
@@ -19,13 +21,13 @@
           
           <!-- Video Info -->
           <div class="video-info-section mb-4">
-            <h1 class="video-title mb-3">{{ currentVideo?.title || '加载中...' }}</h1>
+            <h1 class="video-title mb-3">{{ currentVideo?.name || '加载中...' }}</h1>
             
             <div class="video-meta d-flex flex-wrap gap-3 text-muted mb-3">
-              <span><i class="bi bi-eye"></i> {{ currentVideo?.view_count || 0 }} 次观看</span>
+              <span><i class="bi bi-person"></i> {{ currentVideo?.author_name || '未知' }}</span>
               <span><i class="bi bi-calendar"></i> {{ formatDate(currentVideo?.created_at) }}</span>
-              <span v-if="currentVideo?.duration">
-                <i class="bi bi-clock"></i> {{ formatDuration(currentVideo.duration) }}
+              <span v-if="currentVideo?.display_time">
+                <i class="bi bi-clock"></i> {{ currentVideo.display_time }}
               </span>
             </div>
             
@@ -42,10 +44,6 @@
               </button>
             </div>
             
-            <div class="video-description" v-if="currentVideo?.description">
-              <h5>简介</h5>
-              <p class="text-muted">{{ currentVideo.description }}</p>
-            </div>
           </div>
           
           <!-- Comments Section -->
@@ -81,14 +79,14 @@
             </div>
             
             <div v-else class="comments-list">
-              <div v-for="comment in comments" :key="comment.id" class="comment-item mb-3">
+              <div v-for="comment in comments" :key="comment.comment_id" class="comment-item mb-3">
                 <div class="d-flex gap-3">
                   <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center">
-                    {{ comment.username?.charAt(0).toUpperCase() }}
+                    {{ comment.author_name?.charAt(0).toUpperCase() }}
                   </div>
                   <div class="flex-grow-1">
                     <div class="d-flex justify-content-between align-items-center">
-                      <h6 class="mb-0">{{ comment.username }}</h6>
+                      <h6 class="mb-0">{{ comment.author_name }}</h6>
                       <small class="text-muted">{{ formatDate(comment.created_at) }}</small>
                     </div>
                     <p class="mb-0 mt-1">{{ comment.content }}</p>
@@ -117,22 +115,20 @@
             <div v-else class="related-list">
               <div 
                 v-for="video in relatedVideos" 
-                :key="video.id"
+                :key="video.video_id"
                 class="related-item mb-3"
-                @click="goToVideo(video.id)"
+                @click="goToVideo(video.video_id)"
               >
                 <div class="row g-2">
                   <div class="col-5">
-                    <img 
-                      :src="video.cover_url || '/static/placeholder.jpg'" 
-                      class="img-fluid rounded" 
-                      :alt="video.title"
-                    >
+                    <div class="related-thumb rounded">
+                      <i class="bi bi-film"></i>
+                    </div>
                   </div>
                   <div class="col-7">
-                    <h6 class="text-truncate mb-1">{{ video.title }}</h6>
+                    <h6 class="text-truncate mb-1">{{ video.name }}</h6>
                     <p class="small text-muted mb-0">
-                      <i class="bi bi-eye"></i> {{ video.view_count || 0 }}
+                      <i class="bi bi-clock"></i> {{ video.display_time }}
                     </p>
                   </div>
                 </div>
@@ -151,6 +147,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useVideoStore } from '@/stores/video'
 import { useUserStore } from '@/stores/user'
 import VideoPlayer from '@/components/VideoPlayer.vue'
+import videoApi from '@/api/video'
 import apiClient from '@/api/client'
 
 const route = useRoute()
@@ -162,11 +159,11 @@ const videoId = computed(() => route.params.id)
 const currentVideo = computed(() => videoStore.currentVideo)
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const isOwner = computed(() => {
-  return isLoggedIn.value && currentVideo.value?.user_id === userStore.user?.id
+  return isLoggedIn.value && currentVideo.value?.author_id === userStore.user?.id
 })
 
 const videoUrl = ref('')
-const availableQualities = ref([])
+const streamError = ref('')
 const likeCount = ref(0)
 const isLiked = ref(false)
 const newComment = ref('')
@@ -187,11 +184,21 @@ onMounted(async () => {
 async function loadVideoDetail() {
   try {
     const data = await videoStore.fetchVideoDetail(videoId.value)
-    videoUrl.value = `/api/v1/videos/${videoId.value}/stream`
-    availableQualities.value = data.qualities || []
     likeCount.value = data.like_count || 0
+    await loadStreamUrl()
   } catch (err) {
     console.error('Failed to load video:', err)
+  }
+}
+
+// 播放地址需要短时效令牌：媒体元素无法携带 Authorization 头
+async function loadStreamUrl() {
+  try {
+    const response = await videoApi.getStreamToken(videoId.value)
+    videoUrl.value = videoApi.getVideoStream(videoId.value, response.data.token)
+  } catch (err) {
+    console.error('Failed to get stream token:', err)
+    streamError.value = '获取播放地址失败，请重新登录后再试'
   }
 }
 
@@ -210,7 +217,7 @@ async function loadComments() {
 async function loadRelatedVideos() {
   relatedLoading.value = true
   try {
-    const response = await apiClient.get(`/videos/${videoId.value}/related`)
+    const response = await videoApi.getRelatedVideos(videoId.value)
     relatedVideos.value = response.data.videos || []
   } catch (err) {
     console.error('Failed to load related videos:', err)
@@ -277,12 +284,6 @@ function formatDate(dateStr) {
   return date.toLocaleDateString('zh-CN')
 }
 
-function formatDuration(seconds) {
-  if (!seconds) return ''
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
 </script>
 
 <style lang="scss" scoped>
@@ -339,9 +340,14 @@ function formatDuration(seconds) {
       transform: translateX(5px);
     }
     
-    img {
+    .related-thumb {
+      display: flex;
+      align-items: center;
+      justify-content: center;
       aspect-ratio: 16/9;
-      object-fit: cover;
+      background: #e9ecef;
+      color: #adb5bd;
+      font-size: 1.5rem;
     }
   }
 }

@@ -7,6 +7,7 @@ import videoApi from '@/api/video'
 vi.mock('@/api/video', () => ({
   default: {
     getVideos: vi.fn(),
+    searchVideos: vi.fn(),
     getVideo: vi.fn(),
     uploadVideo: vi.fn(),
     deleteVideo: vi.fn(),
@@ -31,8 +32,8 @@ describe('Video Store', () => {
 
   it('应该获取视频列表', async () => {
     const mockVideos = [
-      { id: 1, title: 'Video 1' },
-      { id: 2, title: 'Video 2' },
+      { video_id: 'v1', name: 'Video 1' },
+      { video_id: 'v2', name: 'Video 2' },
     ]
     const mockResponse = { data: { videos: mockVideos, total: 2 } }
     
@@ -67,7 +68,7 @@ describe('Video Store', () => {
   })
 
   it('应该获取视频详情', async () => {
-    const mockVideo = { id: 1, title: 'Video 1', description: 'Test' }
+    const mockVideo = { video_id: 'v1', name: 'Video 1', author_name: 'tester' }
     videoApi.getVideo.mockResolvedValue({ data: mockVideo })
 
     const result = await videoStore.fetchVideoDetail(1)
@@ -78,7 +79,7 @@ describe('Video Store', () => {
   })
 
   it('应该清除当前视频', () => {
-    videoStore.currentVideo = { id: 1, title: 'Video 1' }
+    videoStore.currentVideo = { video_id: 'v1', name: 'Video 1' }
     
     videoStore.clearCurrentVideo()
     
@@ -87,16 +88,27 @@ describe('Video Store', () => {
 
   it('应该删除视频', async () => {
     const mockVideos = [
-      { id: 1, title: 'Video 1' },
-      { id: 2, title: 'Video 2' },
+      { video_id: 'v1', name: 'Video 1' },
+      { video_id: 'v2', name: 'Video 2' },
     ]
     videoStore.videos = mockVideos
     
     videoApi.deleteVideo.mockResolvedValue({ data: { success: true } })
 
-    await videoStore.deleteVideo(1)
+    await videoStore.deleteVideo('v1')
 
-    expect(videoApi.deleteVideo).toHaveBeenCalledWith(1)
-    expect(videoStore.videos).toEqual([{ id: 2, title: 'Video 2' }])
+    expect(videoApi.deleteVideo).toHaveBeenCalledWith('v1')
+    expect(videoStore.videos).toEqual([{ video_id: 'v2', name: 'Video 2' }])
+  })
+
+  it('应该按关键字搜索视频', async () => {
+    const mockVideos = [{ video_id: 'v1', name: 'Go 教程' }]
+    videoApi.searchVideos.mockResolvedValue({ data: { videos: mockVideos, total: 1 } })
+
+    const result = await videoStore.searchVideos('Go', 1, 12)
+
+    expect(videoApi.searchVideos).toHaveBeenCalledWith('Go', 1, 12)
+    expect(videoStore.videos).toEqual(mockVideos)
+    expect(result.total).toBe(1)
   })
 })

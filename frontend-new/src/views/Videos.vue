@@ -37,27 +37,20 @@
       <div v-else class="row g-4">
         <div 
           v-for="video in videos" 
-          :key="video.id" 
+          :key="video.video_id" 
           class="col-6 col-md-4 col-lg-3"
         >
-          <div class="card h-100 video-card" @click="goToVideo(video.id)">
-            <div class="position-relative">
-              <img 
-                :src="video.cover_url || '/static/placeholder.jpg'" 
-                class="card-img-top" 
-                :alt="video.title"
-              >
-              <div class="video-duration" v-if="video.duration">
-                {{ formatDuration(video.duration) }}
-              </div>
+          <div class="card h-100 video-card" @click="goToVideo(video.video_id)">
+            <div class="video-thumb">
+              <i class="bi bi-film"></i>
             </div>
             <div class="card-body">
-              <h6 class="card-title text-truncate">{{ video.title }}</h6>
-              <p class="card-text small text-muted">
-                <i class="bi bi-person"></i> {{ video.author || '未知' }}
+              <h6 class="card-title text-truncate">{{ video.name }}</h6>
+              <p class="card-text small text-muted mb-1">
+                <i class="bi bi-person"></i> {{ video.author_name || '未知' }}
               </p>
-              <p class="card-text small text-muted">
-                <i class="bi bi-eye"></i> {{ video.view_count || 0 }} 次观看
+              <p class="card-text small text-muted mb-0">
+                <i class="bi bi-clock"></i> {{ video.display_time }}
               </p>
             </div>
           </div>
@@ -117,7 +110,10 @@ async function loadVideos() {
   loading.value = true
   error.value = null
   try {
-    const result = await videoStore.fetchVideos(currentPage.value, pageSize.value)
+    const query = searchQuery.value.trim()
+    const result = query
+      ? await videoStore.searchVideos(query, currentPage.value, pageSize.value)
+      : await videoStore.fetchVideos(currentPage.value, pageSize.value)
     total.value = result.total || videos.value.length
   } catch (err) {
     error.value = '加载视频失败：' + err.message
@@ -141,12 +137,6 @@ function goToVideo(id) {
   router.push(`/video/${id}`)
 }
 
-function formatDuration(seconds) {
-  if (!seconds) return ''
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
 </script>
 
 <style lang="scss" scoped>
@@ -169,20 +159,14 @@ function formatDuration(seconds) {
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
   }
   
-  .card-img-top {
+  .video-thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     aspect-ratio: 16/9;
-    object-fit: cover;
-  }
-  
-  .video-duration {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.75rem;
+    background: #e9ecef;
+    color: #adb5bd;
+    font-size: 2rem;
   }
 }
 

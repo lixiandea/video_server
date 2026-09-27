@@ -27,7 +27,6 @@ test.describe('用户认证', () => {
     await page.goto('/register')
     
     await expect(page.locator('#username')).toBeVisible()
-    await expect(page.locator('#email')).toBeVisible()
     await expect(page.locator('#password')).toBeVisible()
     await expect(page.locator('#confirmPassword')).toBeVisible()
   })
@@ -62,11 +61,9 @@ test.describe('用户认证', () => {
     await page.goto('/register')
     
     const username = page.locator('#username')
-    const email = page.locator('#email')
     const password = page.locator('#password')
     
     await expect(username).toHaveAttribute('required')
-    await expect(email).toHaveAttribute('required')
     await expect(password).toHaveAttribute('required')
   })
 

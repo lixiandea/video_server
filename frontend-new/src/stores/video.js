@@ -23,6 +23,21 @@ export const useVideoStore = defineStore('video', () => {
     }
   }
   
+  async function searchVideos(query, page = 1, pageSize = 12) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await videoApi.searchVideos(query, page, pageSize)
+      videos.value = response.data.videos || []
+      return response.data
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function fetchVideoDetail(id) {
     loading.value = true
     error.value = null
@@ -57,7 +72,7 @@ export const useVideoStore = defineStore('video', () => {
     error.value = null
     try {
       const response = await videoApi.deleteVideo(id)
-      videos.value = videos.value.filter(v => v.id !== id)
+      videos.value = videos.value.filter(v => v.video_id !== id)
       return response.data
     } catch (err) {
       error.value = err.message
@@ -77,6 +92,7 @@ export const useVideoStore = defineStore('video', () => {
     loading,
     error,
     fetchVideos,
+    searchVideos,
     fetchVideoDetail,
     uploadVideo,
     deleteVideo,

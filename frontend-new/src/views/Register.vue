@@ -30,18 +30,7 @@
                   >
                 </div>
                 
-                <div class="mb-3">
-                  <label for="email" class="form-label">邮箱</label>
-                  <input 
-                    type="email" 
-                    class="form-control" 
-                    id="email" 
-                    v-model="email"
-                    required
-                    placeholder="请输入邮箱"
-                  >
-                </div>
-                
+                <!-- 后端 users 表没有邮箱字段，注册仅需用户名与密码 -->
                 <div class="mb-3">
                   <label for="password" class="form-label">密码</label>
                   <input 
@@ -98,7 +87,6 @@ import userApi from '@/api/user'
 const router = useRouter()
 
 const username = ref('')
-const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const loading = ref(false)
@@ -109,7 +97,7 @@ const handleRegister = async () => {
   error.value = null
   success.value = false
   
-  if (!username.value || !email.value || !password.value) {
+  if (!username.value || !password.value) {
     error.value = '请填写所有必填项'
     return
   }
@@ -127,14 +115,14 @@ const handleRegister = async () => {
   loading.value = true
   
   try {
-    await userApi.register(username.value, email.value, password.value)
+    await userApi.register(username.value, password.value)
     success.value = true
     
     setTimeout(() => {
       router.push('/login')
     }, 2000)
   } catch (err) {
-    error.value = err.response?.data?.message || '注册失败，请重试'
+    error.value = err.response?.data?.message || err.response?.data?.error || '注册失败，请重试'
   } finally {
     loading.value = false
   }

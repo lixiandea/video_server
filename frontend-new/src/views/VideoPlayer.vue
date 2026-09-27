@@ -29,12 +29,22 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import VideoPlayer from '@/components/VideoPlayer.vue'
+import videoApi from '@/api/video'
 
 const route = useRoute()
 const playerRef = ref(null)
 
 const videoId = computed(() => route.params.id)
-const videoUrl = computed(() => `/api/v1/videos/${videoId.value}/stream`)
+const videoUrl = ref('')
+
+onMounted(async () => {
+  try {
+    const response = await videoApi.getStreamToken(videoId.value)
+    videoUrl.value = videoApi.getVideoStream(videoId.value, response.data.token)
+  } catch (err) {
+    console.error('Failed to get stream token:', err)
+  }
+})
 
 const onPlayerReady = (player) => {
   console.log('Player ready:', player)

@@ -33,18 +33,6 @@
                 </div>
                 
                 <div class="mb-3">
-                  <label for="description" class="form-label">视频简介</label>
-                  <textarea 
-                    class="form-control" 
-                    id="description" 
-                    v-model="form.description"
-                    rows="4"
-                    placeholder="简单介绍一下你的视频..."
-                    maxlength="500"
-                  ></textarea>
-                </div>
-                
-                <div class="mb-3">
                   <label for="videoFile" class="form-label">视频文件</label>
                   <input 
                     type="file" 
@@ -55,7 +43,7 @@
                     required
                   >
                   <div class="form-text">
-                    支持 MP4、WebM、OGG 等格式，最大支持 2GB 文件
+                    支持 MP4、AVI、MOV、WMV、FLV、MKV、WebM，单个文件不超过 50MB
                   </div>
                 </div>
                 
@@ -97,7 +85,7 @@
             <h5><i class="bi bi-info-circle"></i> 上传说明</h5>
             <ul class="mb-0">
               <li>支持常见视频格式：MP4、WebM、OGG、MOV、AVI 等</li>
-              <li>最大文件大小：2GB</li>
+              <li>最大文件大小：50MB</li>
               <li>上传后系统将自动进行转码处理</li>
               <li>转码完成后即可公开观看</li>
             </ul>
@@ -118,8 +106,7 @@ const router = useRouter()
 const videoStore = useVideoStore()
 
 const form = reactive({
-  title: '',
-  description: ''
+  title: ''
 })
 
 const selectedFile = ref(null)
@@ -132,9 +119,9 @@ const uploadedVideoId = ref(null)
 function handleFileChange(event) {
   const file = event.target.files[0]
   if (file) {
-    // 检查文件大小 (2GB limit)
-    if (file.size > 2 * 1024 * 1024 * 1024) {
-      error.value = '文件大小不能超过 2GB'
+    // 后端限制：单文件 50MB
+    if (file.size > 50 * 1024 * 1024) {
+      error.value = '文件大小不能超过 50MB'
       selectedFile.value = null
       return
     }
@@ -162,10 +149,10 @@ async function handleUpload() {
   success.value = false
   uploadProgress.value = 0
   
+  // 字段名必须与后端一致：file（文件）+ name（标题）
   const formData = new FormData()
-  formData.append('title', form.title)
-  formData.append('description', form.description)
-  formData.append('video', selectedFile.value)
+  formData.append('file', selectedFile.value)
+  formData.append('name', form.title)
   
   try {
     const response = await videoStore.uploadVideo(formData, (progress) => {
@@ -173,14 +160,14 @@ async function handleUpload() {
     })
     
     success.value = true
-    uploadedVideoId.value = response.data?.id || response.data?.video_id
+    uploadedVideoId.value = response.data?.video_id
     
     // 2 秒后跳转到视频详情页
     setTimeout(() => {
       router.push(`/video/${uploadedVideoId.value}`)
     }, 2000)
   } catch (err) {
-    error.value = err.response?.data?.message || '上传失败，请重试'
+    error.value = err.response?.data?.message || err.response?.data?.error || '上传失败，请重试'
   } finally {
     uploading.value = false
   }
