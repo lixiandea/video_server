@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/lixiandea/video_server/pkg/database"
@@ -218,12 +219,95 @@ func (s *TranscodeService) persistResult(task *queue.TranscodeTask, outputPath s
 	if info, err := os.Stat(outputPath); err == nil {
 		updates["size"] = info.Size()
 	}
+	s.extractMetadata(outputPath, updates)
 
 	if err := s.videoService.UpdateVideo(task.VideoID, updates); err != nil {
 		return fmt.Errorf("failed to persist transcode result: %w", err)
 	}
 
 	return nil
+}
+
+// extractMetadata 在转码成功后补充时长与封面（P1-11b）。
+// 两项都属于「锦上添花」：失败只告警，不影响转码任务的成功状态。
+func (s *TranscodeService) extractMetadata(outputPath string, updates map[string]interface{}) {
+	logger := logging.GetLogger()
+
+	if duration, err := probeDuration(outputPath); err != nil {
+		logger.Warn("Failed to probe video duration",
+			zap.String("path", outputPath),
+			zap.Error(err))
+	} else if duration > 0 {
+		updates["duration"] = duration
+	}
+
+	coverPath := coverPathFor(outputPath)
+	if err := extractCover(outputPath, coverPath); err != nil {
+		logger.Warn("Failed to extract video cover",
+			zap.String("path", outputPath),
+			zap.Error(err))
+		return
+	}
+	updates["cover_path"] = coverPath
+}
+
+// coverPathFor 封面与转码产物放在同一目录，命名为 <产物名>_cover.jpg。
+func coverPathFor(outputPath string) string {
+	return strings.TrimSuffix(outputPath, filepath.Ext(outputPath)) + "_cover.jpg"
+}
+
+// probeDuration 用 ffprobe 读取时长（秒）。ffprobe 缺失或输出异常时返回错误。
+func probeDuration(path string) (float64, error) {
+	ffprobePath, err := exec.LookPath("ffprobe")
+	if err != nil {
+		return 0, fmt.Errorf("ffprobe not found in PATH: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	out, err := exec.CommandContext(ctx, ffprobePath,
+		"-v", "error",
+		"-show_entries", "format=duration",
+		"-of", "default=noprint_wrappers=1:nokey=1",
+		path).Output()
+	if err != nil {
+		return 0, fmt.Errorf("ffprobe error: %w", err)
+	}
+
+	duration, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+	if err != nil {
+		return 0, fmt.Errorf("unexpected ffprobe output %q: %w", string(out), err)
+	}
+
+	return duration, nil
+}
+
+// extractCover 抽取一帧作为封面。先尝试第 1 秒，短视频取不到帧时回退到首帧。
+func extractCover(sourcePath, coverPath string) error {
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		return fmt.Errorf("ffmpeg not found in PATH: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var lastOutput []byte
+	for _, seek := range []string{"1", "0"} {
+		out, err := exec.CommandContext(ctx, ffmpegPath,
+			"-y", "-ss", seek, "-i", sourcePath,
+			"-vframes", "1", "-q:v", "2", coverPath).CombinedOutput()
+		lastOutput = out
+		if err != nil {
+			continue
+		}
+		if info, statErr := os.Stat(coverPath); statErr == nil && info.Size() > 0 {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("ffmpeg could not extract a cover frame: %s", string(lastOutput))
 }
 
 // executeTranscode 执行转码，返回产物路径

@@ -42,15 +42,18 @@
         >
           <div class="card h-100 video-card" @click="goToVideo(video.video_id)">
             <div class="video-thumb">
-              <i class="bi bi-film"></i>
+              <img v-if="video.cover_url" :src="video.cover_url" :alt="video.name" loading="lazy">
+              <i v-else class="bi bi-film"></i>
+              <span v-if="video.duration" class="video-duration">{{ formatDuration(video.duration) }}</span>
             </div>
             <div class="card-body">
               <h6 class="card-title text-truncate">{{ video.name }}</h6>
               <p class="card-text small text-muted mb-1">
                 <i class="bi bi-person"></i> {{ video.author_name || '未知' }}
               </p>
-              <p class="card-text small text-muted mb-0">
-                <i class="bi bi-clock"></i> {{ video.display_time }}
+              <p class="card-text small text-muted mb-0 d-flex justify-content-between">
+                <span><i class="bi bi-eye"></i> {{ video.view_count || 0 }}</span>
+                <span><i class="bi bi-clock"></i> {{ video.display_time }}</span>
               </p>
             </div>
           </div>
@@ -137,6 +140,17 @@ function goToVideo(id) {
   router.push(`/video/${id}`)
 }
 
+// 后端返回的是秒数，列表卡片只需要粗略的 mm:ss / h:mm:ss
+function formatDuration(seconds) {
+  const total = Math.round(Number(seconds) || 0)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const secs = total % 60
+  const pad = (value) => String(value).padStart(2, '0')
+
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(secs)}` : `${minutes}:${pad(secs)}`
+}
+
 </script>
 
 <style lang="scss" scoped>
@@ -160,6 +174,7 @@ function goToVideo(id) {
   }
   
   .video-thumb {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -167,6 +182,24 @@ function goToVideo(id) {
     background: #e9ecef;
     color: #adb5bd;
     font-size: 2rem;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  .video-duration {
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    font-size: 0.75rem;
   }
 }
 

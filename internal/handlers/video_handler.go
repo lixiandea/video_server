@@ -4,6 +4,7 @@ import (
     "context"
     "errors"
     "net/http"
+    "os"
     "path/filepath"
     "strconv"
     "strings"
@@ -88,6 +89,13 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
         return
     }
 
+    // 简介为可选字段，与视频名一起在创建后写入
+    description := c.PostForm("description")
+    if err := validation.ValidateVideoDescription(description); err != nil {
+        utils.Fail(c, http.StatusBadRequest, err.Error())
+        return
+    }
+
     // Create video record in database
     video, err := h.videoService.CreateVideo(userID.(uint), videoName)
     if err != nil {
@@ -113,8 +121,9 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 
     // Update video with file path and size
     updates := map[string]interface{}{
-        "file_path": h.storageService.GetVideoPath(video.UUID),
-        "size":      file.Size,
+        "file_path":   h.storageService.GetVideoPath(video.UUID),
+        "size":        file.Size,
+        "description": description,
     }
     h.videoService.UpdateVideo(video.UUID, updates)
 
@@ -195,6 +204,15 @@ func (h *VideoHandler) GetVideoInfo(c *gin.Context) {
         return
     }
 
+    // 打开详情页即计一次观看：写库并失效缓存；失败不影响内容展示
+    if err := h.videoService.IncrementViewCount(video.UUID); err != nil {
+        logging.GetLogger().Warn("Failed to increment view count",
+            zap.String("video_id", video.UUID),
+            zap.Error(err))
+    } else {
+        video.ViewCount++
+    }
+
     // 获取作者信息
     author, err := h.videoService.GetUserByID(video.AuthorID)
     if err != nil {
@@ -204,14 +222,54 @@ func (h *VideoHandler) GetVideoInfo(c *gin.Context) {
 
     c.JSON(http.StatusOK, gin.H{
         "video_id":     video.UUID,
-        "name":        video.Name,
-        "author_id":   video.AuthorID,
-        "author_name": author.LoginName,
+        "name":         video.Name,
+        "description":  video.Description,
+        "author_id":    video.AuthorID,
+        "author_name":  author.LoginName,
+        "cover_url":    coverURL(video),
         "display_time": video.DisplayCTime,
-        "size":        video.Size,
-        "status":      video.Status,
-        "created_at":  video.CreatedAt,
+        "size":         video.Size,
+        "duration":     video.Duration,
+        "view_count":   video.ViewCount,
+        "status":       video.Status,
+        "created_at":   video.CreatedAt,
     })
+}
+
+// coverURL 返回封面地址；没有封面时返回空串，由前端回退到占位样式。
+// 封面走公开接口：<img> 无法携带 Authorization 头，与播放令牌是同一类限制。
+func coverURL(video *models.Video) string {
+    if video.CoverPath == "" {
+        return ""
+    }
+
+    return "/api/v1/videos/" + video.UUID + "/cover"
+}
+
+// GetVideoCover 提供封面图片，供前端 <img> 直接引用。
+func (h *VideoHandler) GetVideoCover(c *gin.Context) {
+    videoID := c.Param("video_id")
+
+    video, err := h.videoService.GetVideoByID(videoID)
+    if err != nil {
+        utils.FailFrom(c, err, "Video not found")
+        return
+    }
+    if video.Status != "active" || video.CoverPath == "" {
+        utils.Fail(c, http.StatusNotFound, "Cover not found")
+        return
+    }
+
+    // 与播放路径一致：库中可能是别处写入的绝对路径，这里只取文件名重新拼接。
+    coverPath := h.storageService.GetVideoPath(filepath.Base(video.CoverPath))
+    if _, err := os.Stat(coverPath); err != nil {
+        utils.Fail(c, http.StatusNotFound, "Cover not found")
+        return
+    }
+
+    // 封面内容由 UUID 决定，可放心让浏览器缓存
+    c.Header("Cache-Control", "public, max-age=3600")
+    c.File(coverPath)
 }
 
 // parsePagination 统一解析 page/limit 查询参数，limit 上限 100。
@@ -235,9 +293,13 @@ func videoListItem(video *models.Video, authorName string) map[string]interface{
     return map[string]interface{}{
         "video_id":     video.UUID,
         "name":         video.Name,
+        "description":  video.Description,
         "author_name":  authorName,
+        "cover_url":    coverURL(video),
         "display_time": video.DisplayCTime,
         "size":         video.Size,
+        "duration":     video.Duration,
+        "view_count":   video.ViewCount,
         "status":       video.Status,
         "created_at":   video.CreatedAt,
     }

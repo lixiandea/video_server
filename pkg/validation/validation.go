@@ -73,6 +73,15 @@ func ValidateBio(bio string) error {
     return nil
 }
 
+// ValidateVideoDescription 校验视频简介长度。空字符串表示未填写，直接视为通过。
+func ValidateVideoDescription(description string) error {
+    if len([]rune(description)) > 500 {
+        return fmt.Errorf("description must be at most 500 characters")
+    }
+
+    return nil
+}
+
 // ErrFileTooLarge 表示上传文件超过允许的最大体积
 var ErrFileTooLarge = errors.New("file too large")
 

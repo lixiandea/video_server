@@ -23,9 +23,17 @@
           <div class="video-info-section mb-4">
             <h1 class="video-title mb-3">{{ currentVideo?.name || '加载中...' }}</h1>
             
+            <p v-if="currentVideo?.description" class="video-description text-muted mb-3">
+              {{ currentVideo.description }}
+            </p>
+            
             <div class="video-meta d-flex flex-wrap gap-3 text-muted mb-3">
               <span><i class="bi bi-person"></i> {{ currentVideo?.author_name || '未知' }}</span>
               <span><i class="bi bi-calendar"></i> {{ formatDate(currentVideo?.created_at) }}</span>
+              <span><i class="bi bi-eye"></i> {{ currentVideo?.view_count || 0 }} 次观看</span>
+              <span v-if="currentVideo?.duration">
+                <i class="bi bi-stopwatch"></i> {{ formatDuration(currentVideo.duration) }}
+              </span>
               <span v-if="currentVideo?.display_time">
                 <i class="bi bi-clock"></i> {{ currentVideo.display_time }}
               </span>
@@ -282,6 +290,17 @@ function formatDate(dateStr) {
   if (!dateStr) return ''
   const date = new Date(dateStr)
   return date.toLocaleDateString('zh-CN')
+}
+
+// 后端返回秒数，详情页展示 mm:ss / h:mm:ss
+function formatDuration(seconds) {
+  const total = Math.round(Number(seconds) || 0)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const secs = total % 60
+  const pad = (value) => String(value).padStart(2, '0')
+
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(secs)}` : `${minutes}:${pad(secs)}`
 }
 
 </script>

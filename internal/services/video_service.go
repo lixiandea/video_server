@@ -195,6 +195,22 @@ func (s *VideoService) UpdateVideo(videoID string, updates map[string]interface{
     return nil
 }
 
+// IncrementViewCount 记录一次观看。
+// 播放量是高频写入，用 SQL 自增避免「读-改-写」丢失更新，并让 updated_at 保持稳定。
+func (s *VideoService) IncrementViewCount(videoID string) error {
+    result := s.db.Model(&models.Video{}).Where("uuid = ?", videoID).
+        UpdateColumn("view_count", gorm.Expr("view_count + 1"))
+    if result.Error != nil {
+        return fmt.Errorf("failed to increment view count: %w", result.Error)
+    }
+    if result.RowsAffected == 0 {
+        return apperrors.NotFoundf("video not found")
+    }
+
+    s.invalidateVideoCache(videoID)
+    return nil
+}
+
 func (s *VideoService) DeleteVideo(videoID string) error {
     result := s.db.Model(&models.Video{}).Where("uuid = ?", videoID).Update("status", "deleted")
     if result.Error != nil {

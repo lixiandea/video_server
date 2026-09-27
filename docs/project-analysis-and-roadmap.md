@@ -561,6 +561,37 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 
 **遗留**：`email` 只有普通索引而非唯一索引（历史行均为空串，唯一索引会互相冲突），唯一性由 service 层在写入前校验，并发下存在极小概率竞态。
 
+### 5.21 P1-11b 视频字段（简介 / 封面 / 播放量 / 时长）实施记录（2026-09-27）
+
+**改动**
+
+| 文件 | 改动 |
+| --- | --- |
+| `internal/models/models.go` | `Video` 新增 `Description`（varchar(500)）、`CoverPath`、`ViewCount`（`Duration` 字段早已存在，此前从未写入） |
+| `pkg/validation/validation.go` | 新增 `ValidateVideoDescription`（≤500 字） |
+| `internal/services/video_service.go` | 新增 `IncrementViewCount`：SQL 自增 + 失效缓存，避免读改写丢更新 |
+| `internal/services/transcode_service.go` | 转码成功后用 ffprobe 取时长、ffmpeg 抽帧生成封面（`<产物名>_cover.jpg`）；两项失败只告警，不影响任务成功状态 |
+| `internal/handlers/video_handler.go` | 上传接受 `description`；列表项与详情统一返回 `description`/`cover_url`/`duration`/`view_count`；打开详情页计一次观看；新增 `GetVideoCover` |
+| `cmd/api-server/main.go` | 新增公开路由 `GET /videos/:video_id/cover`（`<img>` 无法携带 Authorization 头） |
+| `frontend-new/src/views/Videos.vue`、`VideoDetail.vue`、`Profile.vue` | 封面图 + 时长角标 + 播放量，详情页展示简介 |
+| `frontend-new/src/views/Upload.vue` | 新增可选简介输入并随表单提交 |
+
+**验收结果**（重建 api-server 与 transcode-worker 后执行）
+
+| 场景 | 结果 |
+| --- | --- |
+| 上传携带简介 | ✅ 201 且落库；>500 字返回 400 |
+| 转码后 `duration` / `cover_path` | ✅ 均写入，封面文件落在共享卷 |
+| 详情 / 列表字段 | ✅ `description`、`cover_url`、`duration`、`view_count` 齐全 |
+| `GET /videos/:id/cover` | ✅ 200 且 `image/jpeg`；无封面或视频不存在返回 404 |
+| 连续访问详情页 | ✅ `view_count` 递增且与 DB 一致 |
+| 专项验收脚本（17 项） | ✅ 17 PASS / 0 FAIL |
+| `test-api.sh` 回归 | ✅ 13/13 |
+| `go build ./...` / `go vet ./...` | ✅ 通过 |
+| `cd frontend-new && npx vitest run` | ✅ 3 文件 / 22 用例 |
+
+**遗留**：封面为单张 JPEG，未生成多分辨率缩略图，且封面接口对外公开；`view_count` 在打开详情页时累加（需登录），未按用户去重。
+
 ## 6. 实施约定
 
 - 一次只推进一个任务，独立提交，保持可回滚。
@@ -587,7 +618,7 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 - [x] P1-8 统一 DDL 与模型（`init.sql` 仅引导 `users`，逐表迁移容错）
 - [x] P1-9 串行化启动迁移（MySQL `GET_LOCK`）
 - [x] P1-10 队列统计容错（`NOGROUP` → pending=0）
-- [ ] P1-11 扩展视频/用户字段（拆分推进：**P1-11a 用户 email/bio ✅ 已完成**；P1-11b 视频封面/播放量/时长/简介、P1-11c 点赞 待办）
+- [ ] P1-11 扩展视频/用户字段（拆分推进：**P1-11a 用户 email/bio ✅、P1-11b 视频封面/播放量/时长/简介 ✅ 已完成**；P1-11c 点赞 待办）
 - [ ] P2-1 合并 cmd/worker
 - [ ] P2-2 前端收敛与产物出库
 - [ ] P2-3 限流器淘汰与可观测性加固

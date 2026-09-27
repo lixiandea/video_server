@@ -86,12 +86,14 @@
                 <div v-for="video in myVideos" :key="video.video_id" class="col-6 col-md-4">
                   <div class="card video-card" @click="goToVideo(video.video_id)">
                     <div class="video-thumb">
-                      <i class="bi bi-film"></i>
+                      <img v-if="video.cover_url" :src="video.cover_url" :alt="video.name" loading="lazy">
+                      <i v-else class="bi bi-film"></i>
                     </div>
                     <div class="card-body p-2">
                       <h6 class="card-title text-truncate small">{{ video.name }}</h6>
-                      <p class="card-text small text-muted mb-0">
-                        <i class="bi bi-clock"></i> {{ video.display_time }}
+                      <p class="card-text small text-muted mb-0 d-flex justify-content-between">
+                        <span><i class="bi bi-eye"></i> {{ video.view_count || 0 }}</span>
+                        <span><i class="bi bi-clock"></i> {{ video.display_time }}</span>
                       </p>
                     </div>
                   </div>
@@ -236,6 +238,13 @@ function goToVideo(id) {
     background: #e9ecef;
     color: #adb5bd;
     font-size: 2rem;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
   }
 }
 </style>

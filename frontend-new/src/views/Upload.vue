@@ -33,6 +33,18 @@
                 </div>
                 
                 <div class="mb-3">
+                  <label for="description" class="form-label">视频简介（选填）</label>
+                  <textarea 
+                    class="form-control" 
+                    id="description" 
+                    rows="3" 
+                    maxlength="500"
+                    v-model="form.description"
+                    placeholder="简单介绍这个视频，最多 500 字"
+                  ></textarea>
+                </div>
+                
+                <div class="mb-3">
                   <label for="videoFile" class="form-label">视频文件</label>
                   <input 
                     type="file" 
@@ -106,7 +118,8 @@ const router = useRouter()
 const videoStore = useVideoStore()
 
 const form = reactive({
-  title: ''
+  title: '',
+  description: ''
 })
 
 const selectedFile = ref(null)
@@ -149,10 +162,13 @@ async function handleUpload() {
   success.value = false
   uploadProgress.value = 0
   
-  // 字段名必须与后端一致：file（文件）+ name（标题）
+  // 字段名必须与后端一致：file（文件）+ name（标题）+ description（简介）
   const formData = new FormData()
   formData.append('file', selectedFile.value)
   formData.append('name', form.title)
+  if (form.description) {
+    formData.append('description', form.description)
+  }
   
   try {
     const response = await videoStore.uploadVideo(formData, (progress) => {

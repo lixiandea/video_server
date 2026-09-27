@@ -133,6 +133,8 @@ func main() {
 		public.POST("/users/login", userHandler.Login)
 		// 视频列表 / 搜索：首页与列表页对未登录用户可见
 		public.GET("/videos", videoHandler.ListVideos)
+		// 封面：<img> 无法携带 Authorization 头，与播放令牌同理需公开
+		public.GET("/videos/:video_id/cover", videoHandler.GetVideoCover)
 	}
 
 	// Stream routes: <video src> cannot send headers, so StreamAuthMiddleware
