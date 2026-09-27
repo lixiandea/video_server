@@ -99,7 +99,7 @@ func main() {
 	r := gin.New()
 
 	// Global middleware
-	r.Use(middleware.CORSMiddleware())
+	r.Use(middleware.CORSMiddleware(cfg.Server.CORS.AllowedOrigins))
 	r.Use(middleware.RequestIDMiddleware()) // Add request ID tracking
 	r.Use(middleware.LoggingMiddleware())
 	r.Use(middleware.ErrorLoggingMiddleware())

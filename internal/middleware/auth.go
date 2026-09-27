@@ -7,6 +7,7 @@ import (
     "time"
 
     "github.com/gin-gonic/gin"
+    "github.com/lixiandea/video_server/internal/utils"
     "github.com/lixiandea/video_server/pkg/auth"
     "github.com/lixiandea/video_server/pkg/logging"
     "go.uber.org/zap"
@@ -18,8 +19,7 @@ func AuthMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
         authHeader := c.GetHeader("Authorization")
         if authHeader == "" {
-            c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
-            c.Abort()
+            utils.Fail(c, http.StatusUnauthorized, "Authorization header required")
             return
         }
 
@@ -28,16 +28,14 @@ func AuthMiddleware() gin.HandlerFunc {
         if strings.HasPrefix(authHeader, "Bearer ") {
             tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
         } else {
-            c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
-            c.Abort()
+            utils.Fail(c, http.StatusUnauthorized, "Invalid authorization format")
             return
         }
 
         claims, err := auth.ParseJWT(tokenStr)
         if err != nil {
             logging.GetLogger().Warn("Invalid token", zap.Error(err))
-            c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
-            c.Abort()
+            utils.Fail(c, http.StatusUnauthorized, "Invalid or expired token")
             return
         }
 
@@ -47,6 +45,41 @@ func AuthMiddleware() gin.HandlerFunc {
         c.Set("session_id", claims.SessionID)
 
         c.Next()
+    }
+}
+
+// StreamAuthMiddleware 仅用于播放路由。媒体元素（<video src>）无法设置请求头，
+// 因此除标准 Authorization 头外，还接受 URL 上的短时效播放令牌。
+func StreamAuthMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        videoID := c.Param("video_id")
+
+        if authHeader := c.GetHeader("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+            if claims, err := auth.ParseJWT(strings.TrimPrefix(authHeader, "Bearer ")); err == nil {
+                c.Set("user_id", claims.UserID)
+                c.Set("username", claims.Username)
+                c.Set("session_id", claims.SessionID)
+                c.Next()
+                return
+            } else {
+                logging.GetLogger().Warn("Invalid bearer token on stream route", zap.Error(err))
+            }
+        }
+
+        if tokenStr := c.Query("token"); tokenStr != "" {
+            if claims, err := auth.ParseStreamToken(tokenStr, videoID); err == nil {
+                c.Set("user_id", claims.UserID)
+                c.Set("stream_token", true)
+                c.Next()
+                return
+            } else {
+                logging.GetLogger().Warn("Invalid stream token",
+                    zap.String("video_id", videoID),
+                    zap.Error(err))
+            }
+        }
+
+        utils.Fail(c, http.StatusUnauthorized, "Valid access token or stream token required")
     }
 }
 
@@ -98,8 +131,7 @@ func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 
         if !limiter.Allow() {
             logging.GetLogger().Warn("Rate limit exceeded", zap.String("ip", key))
-            c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests"})
-            c.Abort()
+            utils.Fail(c, http.StatusTooManyRequests, "Too many requests")
             return
         }
 
@@ -152,16 +184,48 @@ func cleanupRateLimiters() {
     // and remove stale limiters
 }
 
-// CORSMiddleware adds CORS headers
-func CORSMiddleware() gin.HandlerFunc {
+// CORSMiddleware only sends CORS headers for allowlisted origins. Combining a
+// wildcard origin with credentials is invalid, so "*" is handled separately and
+// never receives Access-Control-Allow-Credentials.
+func CORSMiddleware(allowedOrigins []string) gin.HandlerFunc {
+    allowed := make(map[string]struct{}, len(allowedOrigins))
+    allowAll := false
+    for _, origin := range allowedOrigins {
+        switch origin = strings.TrimSpace(origin); origin {
+        case "":
+        case "*":
+            allowAll = true
+        default:
+            allowed[origin] = struct{}{}
+        }
+    }
+
     return func(c *gin.Context) {
-        c.Header("Access-Control-Allow-Origin", "*")
-        c.Header("Access-Control-Allow-Credentials", "true")
-        c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-        c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+        origin := c.GetHeader("Origin")
+        _, explicitlyAllowed := allowed[origin]
+
+        switch {
+        case origin == "":
+            // 非浏览器请求，不需要 CORS 头
+        case allowAll:
+            c.Header("Access-Control-Allow-Origin", "*")
+        case explicitlyAllowed:
+            c.Header("Access-Control-Allow-Origin", origin)
+            c.Header("Access-Control-Allow-Credentials", "true")
+        }
+
+        if origin != "" && (allowAll || explicitlyAllowed) {
+            c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+            c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+            c.Header("Vary", "Origin")
+        }
 
         if c.Request.Method == "OPTIONS" {
-            c.AbortWithStatus(204)
+            if origin != "" && !allowAll && !explicitlyAllowed {
+                c.AbortWithStatus(http.StatusForbidden)
+                return
+            }
+            c.AbortWithStatus(http.StatusNoContent)
             return
         }
 
