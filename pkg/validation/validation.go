@@ -1,7 +1,10 @@
 package validation
 
 import (
+    "bytes"
+    "errors"
     "fmt"
+    "io"
     "mime/multipart"
     "path/filepath"
     "regexp"
@@ -42,30 +45,78 @@ func ValidatePassword(password string) error {
     return nil
 }
 
-// ValidateVideoFile validates uploaded video file
-func ValidateVideoFile(fileHeader *multipart.FileHeader) error {
-    // Check file extension
+// ErrFileTooLarge 表示上传文件超过允许的最大体积
+var ErrFileTooLarge = errors.New("file too large")
+
+// MaxVideoSize 是未显式配置时的兜底体积上限
+const MaxVideoSize int64 = 50 * 1024 * 1024 // 50MB
+
+var (
+    allowedVideoExts = []string{".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm"}
+    asfMagic         = []byte{0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11, 0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C}
+
+    // videoMagicChecks 依据容器文件头（magic number）判断真实格式
+    videoMagicChecks = []func([]byte) bool{
+        func(b []byte) bool { return len(b) >= 12 && string(b[4:8]) == "ftyp" },                                       // MP4 / MOV / 3GP
+        func(b []byte) bool { return len(b) >= 4 && b[0] == 0x1A && b[1] == 0x45 && b[2] == 0xDF && b[3] == 0xA3 },    // Matroska / WebM
+        func(b []byte) bool { return len(b) >= 12 && string(b[0:4]) == "RIFF" && string(b[8:12]) == "AVI " },         // AVI
+        func(b []byte) bool { return len(b) >= 3 && string(b[0:3]) == "FLV" },                                        // FLV
+        func(b []byte) bool { return len(b) >= len(asfMagic) && bytes.Equal(b[:len(asfMagic)], asfMagic) },           // ASF / WMV
+    }
+)
+
+// ValidateVideoFile 同时校验扩展名、体积与文件头，避免仅凭后缀放行任意内容。
+func ValidateVideoFile(fileHeader *multipart.FileHeader, maxSize int64) error {
+    if fileHeader == nil {
+        return fmt.Errorf("missing uploaded file")
+    }
+
     ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-    validExts := []string{".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm"}
-    
-    isValidExt := false
-    for _, validExt := range validExts {
-        if ext == validExt {
-            isValidExt = true
-            break
+    if !containsString(allowedVideoExts, ext) {
+        return fmt.Errorf("invalid file type. Allowed types: %v", allowedVideoExts)
+    }
+
+    if maxSize <= 0 {
+        maxSize = MaxVideoSize
+    }
+    if fileHeader.Size > maxSize {
+        return fmt.Errorf("%w: maximum size is %d bytes", ErrFileTooLarge, maxSize)
+    }
+
+    return validateVideoContent(fileHeader)
+}
+
+// validateVideoContent 读取文件头并匹配受支持的视频容器签名。
+func validateVideoContent(fileHeader *multipart.FileHeader) error {
+    file, err := fileHeader.Open()
+    if err != nil {
+        return fmt.Errorf("cannot open uploaded file: %w", err)
+    }
+    defer file.Close()
+
+    head := make([]byte, 16)
+    n, err := io.ReadFull(file, head)
+    if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+        return fmt.Errorf("cannot read uploaded file: %w", err)
+    }
+    head = head[:n]
+
+    for _, matches := range videoMagicChecks {
+        if matches(head) {
+            return nil
         }
     }
-    
-    if !isValidExt {
-        return fmt.Errorf("invalid file type. Allowed types: %v", validExts)
+
+    return fmt.Errorf("file content does not match a supported video format")
+}
+
+func containsString(list []string, target string) bool {
+    for _, item := range list {
+        if item == target {
+            return true
+        }
     }
-    
-    // Check file size (using 500MB as max for example)
-    if fileHeader.Size > 500*1024*1024 { // 500MB
-        return fmt.Errorf("file too large. Maximum size is 500MB")
-    }
-    
-    return nil
+    return false
 }
 
 // ValidateVideoName validates video name
