@@ -10,6 +10,11 @@ bin/
 .DS_Store
 frontend-vue/node_modules/
 
+# Environment files (secrets) - keep .env.example instead
+.env
+.env.*
+!.env.example
+
 # Test temporary files
 /tmp/register_response.json
 /tmp/login_response.json
@@ -24,3 +29,12 @@ frontend-vue/node_modules/
 logs/*.log
 *.log
 bin/
+
+# Frontend dependencies and build output
+# 通用规则：任何层级的 node_modules 都忽略（依赖目录不入库）
+node_modules/
+frontend-new/dist/
+
+# Runtime artifacts from uploads / transcoding (docker volume mount point)
+storage/videos/*
+storage/temp/*
