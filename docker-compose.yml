@@ -51,6 +51,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       - STREAM_TOKEN_TTL=${STREAM_TOKEN_TTL:-7200}
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
       - STORAGE_VIDEO_DIR=/app/storage/videos
       - STORAGE_TEMP_DIR=/app/storage/temp
     networks:

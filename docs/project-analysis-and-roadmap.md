@@ -638,6 +638,33 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 
 **遗留**：`gofmt -l` 尚未纳入 CI 门禁，随 P2-4 一并落地。
 
+### 5.24 P2-3 限流器淘汰与 `/metrics` 加固（2026-09-27）
+
+**改动**
+
+| 文件 | 改动 |
+| --- | --- |
+| `internal/middleware/auth.go` | 限流器条目改为 `limiterEntry{limiter, lastSeen atomic.Int64}`；新增 `Size`/`Cleanup(ttl)`；后台协程由「空实现」改为每 5 分钟回收空闲超过 10 分钟的条目，并上报 `rate_limiter_entries` |
+| `pkg/metrics/metrics.go` | 新增 `rate_limiter_entries` gauge；`RegisterMetricsEndpoint(r, token)` 支持两种保护：配置令牌时要求 `Authorization: Bearer <token>`；未配置时只放行回环 / 私有网段，其余 403 |
+| `internal/config/config.go` | 新增 `metrics_token`（绑定 `METRICS_TOKEN`） |
+| `cmd/api-server/main.go` | 传入 `cfg.Server.MetricsToken` |
+| `.env.example`、`docker-compose.yml` | 新增可选的 `METRICS_TOKEN` |
+| `internal/middleware/ratelimit_test.go`、`pkg/metrics/metrics_endpoint_test.go`（新增） | 仓库首批 Go 单元测试：验证回收只清理空闲条目、回收后桶重新填满、令牌与网段两种保护分支 |
+
+**验收结果**（重建 api-server 后执行）
+
+| 场景 | 结果 |
+| --- | --- |
+| `go test ./...` | ✅ `internal/middleware`、`pkg/metrics` 通过（其余包无测试文件） |
+| 未配置令牌 + 本机抓取 `/metrics` | ✅ 200（经 docker 网关，属私有网段） |
+| 未配置令牌 + 公网来源 | ✅ 403（单元测试用 `203.0.113.7` 验证） |
+| 配置令牌 | ✅ 无头 401 / 错误令牌 401 / 正确令牌 200 |
+| `rate_limiter_entries` 指标 | ✅ 已在 `/metrics` 暴露 |
+| Prometheus 抓取 `video-api-server` | ✅ `up`（默认内网放行路径未破坏监控） |
+| `test-api.sh` 回归 | ✅ 13/13 |
+
+**遗留**：`X-Forwarded-For` 不被信任（判定用 TCP 源地址），因此若未来在反向代理后启用 `METRICS_TOKEN` 更稳妥；Prometheus 中 `video-scheduler`（404）与 `video-worker`（连接被拒）两个抓取目标本就无 `/metrics`，属既有问题，随 P2-1 处理 worker 时一并收敛。
+
 ## 6. 实施约定
 
 - 一次只推进一个任务，独立提交，保持可回滚。
@@ -667,7 +694,7 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 - [x] P1-11 扩展视频/用户字段（分三批完成：P1-11a 用户 email/bio、P1-11b 视频封面/播放量/时长/简介、P1-11c 点赞关系与计数）
 - [ ] P2-1 合并 cmd/worker
 - [ ] P2-2 前端收敛与产物出库
-- [ ] P2-3 限流器淘汰与可观测性加固
+- [x] P2-3 限流器淘汰与可观测性加固（空闲 10 分钟的条目被回收并上报 `rate_limiter_entries`；`/metrics` 支持令牌或内网限制）
 - [ ] P2-4 测试与 CI 门禁
 - [ ] P2-5 版本化数据库迁移
 - [ ] P2-6 脚本收敛与文档修正

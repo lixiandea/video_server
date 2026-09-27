@@ -1,10 +1,13 @@
 package metrics
 
 import (
+	"net"
+	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lixiandea/video_server/internal/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -137,6 +140,14 @@ var (
 		},
 	)
 
+	// Rate limiter metrics
+	rateLimiterEntries = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "rate_limiter_entries",
+			Help: "Number of per-client rate limiters currently tracked",
+		},
+	)
+
 	// Database metrics
 	dbConnections = promauto.NewGauge(
 		prometheus.GaugeOpts{
@@ -211,9 +222,55 @@ func MetricsMiddleware() gin.HandlerFunc {
 	}
 }
 
-// RegisterMetricsEndpoint registers the /metrics endpoint
-func RegisterMetricsEndpoint(r *gin.Engine) {
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+// RegisterMetricsEndpoint registers the /metrics endpoint.
+//
+// 指标包含内部拓扑与调用量，不应对外公开，因此按两种方式之一保护：
+//  1. 配置了 token 时要求 `Authorization: Bearer <token>`（推荐，Prometheus 侧用
+//     `authorization.credentials_file` 提供）；
+//  2. 未配置 token 时只允许来自回环 / 私有网段的抓取，公网来源返回 403。
+//
+// 判断使用 TCP 源地址而非 gin 的 ClientIP：后者信任 X-Forwarded-For，可被伪造。
+func RegisterMetricsEndpoint(r *gin.Engine, token string) {
+	handler := gin.WrapH(promhttp.Handler())
+
+	r.GET("/metrics", func(c *gin.Context) {
+		if token != "" {
+			if c.GetHeader("Authorization") != "Bearer "+token {
+				c.Header("WWW-Authenticate", "Bearer")
+				utils.Fail(c, http.StatusUnauthorized, "Metrics token required")
+				return
+			}
+			handler(c)
+			return
+		}
+
+		if !isPrivateRemote(c.Request.RemoteAddr) {
+			utils.Fail(c, http.StatusForbidden, "Metrics endpoint is restricted to private networks")
+			return
+		}
+		handler(c)
+	})
+}
+
+// isPrivateRemote 判断 TCP 源地址是否属于回环 / 私有 / 链路本地网段。
+// Docker Compose 内网的 Prometheus（172.16/12）因此默认可正常抓取。
+func isPrivateRemote(remoteAddr string) bool {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
+}
+
+// SetRateLimiterEntries 上报当前被跟踪的限流器数量，便于观察内存增长。
+func SetRateLimiterEntries(count int) {
+	rateLimiterEntries.Set(float64(count))
 }
 
 // Business metric helpers

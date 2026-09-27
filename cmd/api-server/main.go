@@ -124,7 +124,7 @@ func main() {
 	})
 
 	// Metrics endpoint
-	metrics.RegisterMetricsEndpoint(r)
+	metrics.RegisterMetricsEndpoint(r, cfg.Server.MetricsToken)
 
 	// Public routes
 	public := r.Group("/api/v1")

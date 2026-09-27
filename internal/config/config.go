@@ -22,6 +22,7 @@ type ServerConfig struct {
 	MaxFileSize    int64           `mapstructure:"max_file_size"`    // bytes
 	JWTSecret      string          `mapstructure:"jwt_secret"`       // from JWT_SECRET env
 	StreamTokenTTL int             `mapstructure:"stream_token_ttl"` // seconds, playback token lifetime
+	MetricsToken   string          `mapstructure:"metrics_token"`    // 可选，/metrics 的 Bearer 令牌
 	RateLimit      RateLimitConfig `mapstructure:"rate_limit"`
 	CORS           CORSConfig      `mapstructure:"cors"`
 }
@@ -74,6 +75,7 @@ func LoadConfig() *Config {
 	viper.SetDefault("server.rate_limit.rate", 10.0)
 	viper.SetDefault("server.rate_limit.burst", 20)
 	viper.SetDefault("server.jwt_secret", "")
+	viper.SetDefault("server.metrics_token", "")
 	viper.SetDefault("server.stream_token_ttl", 7200) // 2h
 	viper.SetDefault("server.cors.allowed_origins", []string{"http://localhost:3000"})
 
@@ -114,6 +116,7 @@ func LoadConfig() *Config {
 
 	// Bind JWT secret: no default, so a missing value fails fast at startup
 	viper.BindEnv("server.jwt_secret", "JWT_SECRET")
+	viper.BindEnv("server.metrics_token", "METRICS_TOKEN")
 	viper.BindEnv("server.stream_token_ttl", "STREAM_TOKEN_TTL")
 
 	// Bind storage directories so containers can mount them explicitly

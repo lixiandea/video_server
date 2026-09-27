@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +12,7 @@ import (
 	"github.com/lixiandea/video_server/pkg/auth"
 	apperrors "github.com/lixiandea/video_server/pkg/errors"
 	"github.com/lixiandea/video_server/pkg/logging"
+	"github.com/lixiandea/video_server/pkg/metrics"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
@@ -117,9 +119,16 @@ func StreamAuthMiddleware(sessions SessionValidator) gin.HandlerFunc {
 	}
 }
 
+// limiterEntry 记录单个客户端的限流器与最近使用时间。
+// lastSeen 用原子值保存，使热路径只持读锁即可刷新时间戳，避免每个请求都抢写锁。
+type limiterEntry struct {
+	limiter  *rate.Limiter
+	lastSeen atomic.Int64 // Unix 秒
+}
+
 // RateLimiter middleware for rate limiting
 type RateLimiter struct {
-	limiters map[string]*rate.Limiter
+	limiters map[string]*limiterEntry
 	mu       sync.RWMutex
 	rate     rate.Limit
 	burst    int
@@ -128,7 +137,7 @@ type RateLimiter struct {
 // NewRateLimiter creates a new rate limiter
 func NewRateLimiter(r rate.Limit, burst int) *RateLimiter {
 	return &RateLimiter{
-		limiters: make(map[string]*rate.Limiter),
+		limiters: make(map[string]*limiterEntry),
 		rate:     r,
 		burst:    burst,
 	}
@@ -136,25 +145,57 @@ func NewRateLimiter(r rate.Limit, burst int) *RateLimiter {
 
 // getLimiter returns or creates a rate limiter for the given key
 func (rl *RateLimiter) getLimiter(key string) *rate.Limiter {
+	now := time.Now().Unix()
+
 	rl.mu.RLock()
-	limiter, exists := rl.limiters[key]
+	entry, exists := rl.limiters[key]
 	rl.mu.RUnlock()
 
 	if exists {
-		return limiter
+		entry.lastSeen.Store(now)
+		return entry.limiter
 	}
 
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
 	// Double-check after acquiring write lock
-	if limiter, exists := rl.limiters[key]; exists {
-		return limiter
+	if entry, exists = rl.limiters[key]; exists {
+		entry.lastSeen.Store(now)
+		return entry.limiter
 	}
 
-	limiter = rate.NewLimiter(rl.rate, rl.burst)
-	rl.limiters[key] = limiter
-	return limiter
+	entry = &limiterEntry{limiter: rate.NewLimiter(rl.rate, rl.burst)}
+	entry.lastSeen.Store(now)
+	rl.limiters[key] = entry
+
+	return entry.limiter
+}
+
+// Size 返回当前跟踪的客户端数量。
+func (rl *RateLimiter) Size() int {
+	rl.mu.RLock()
+	defer rl.mu.RUnlock()
+
+	return len(rl.limiters)
+}
+
+// Cleanup 回收空闲超过 ttl 的限流器，返回回收数量。
+func (rl *RateLimiter) Cleanup(ttl time.Duration) int {
+	cutoff := time.Now().Add(-ttl).Unix()
+
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	removed := 0
+	for key, entry := range rl.limiters {
+		if entry.lastSeen.Load() < cutoff {
+			delete(rl.limiters, key)
+			removed++
+		}
+	}
+
+	return removed
 }
 
 // Middleware returns the rate limiting middleware function
@@ -202,10 +243,17 @@ func RateLimitMiddleware() gin.HandlerFunc {
 	return rateLimiterWithConfig.Middleware()
 }
 
+const (
+	// limiterTTL 限流器空闲多久后被回收。10 分钟足以覆盖单个客户端的连续操作。
+	limiterTTL = 10 * time.Minute
+	// limiterCleanupInterval 回收扫描周期
+	limiterCleanupInterval = 5 * time.Minute
+)
+
 // Cleanup old limiters periodically to prevent memory leak
 func init() {
 	go func() {
-		ticker := time.NewTicker(10 * time.Minute)
+		ticker := time.NewTicker(limiterCleanupInterval)
 		defer ticker.Stop()
 		for range ticker.C {
 			cleanupRateLimiters()
@@ -213,9 +261,17 @@ func init() {
 	}()
 }
 
+// cleanupRateLimiters 回收空闲限流器，避免 map 随客户端数量无限增长（P2-3）。
 func cleanupRateLimiters() {
-	// In a production system, you would track last access time
-	// and remove stale limiters
+	rl := rateLimiterWithConfig
+	if rl == nil {
+		return
+	}
+
+	if removed := rl.Cleanup(limiterTTL); removed > 0 {
+		logging.GetLogger().Info("Evicted idle rate limiters", zap.Int("count", removed))
+	}
+	metrics.SetRateLimiterEntries(rl.Size())
 }
 
 // CORSMiddleware only sends CORS headers for allowlisted origins. Combining a
