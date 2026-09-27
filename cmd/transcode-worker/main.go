@@ -11,6 +11,7 @@ import (
 
 	"github.com/lixiandea/video_server/internal/config"
 	"github.com/lixiandea/video_server/internal/services"
+	"github.com/lixiandea/video_server/pkg/database"
 	"github.com/lixiandea/video_server/pkg/logging"
 	"github.com/lixiandea/video_server/pkg/queue"
 	"github.com/lixiandea/video_server/pkg/redis"
@@ -47,6 +48,11 @@ func main() {
 	// Initialize task queue
 	redisClient := redis.GetClient()
 	taskQueue := queue.NewTaskQueue(redisClient, queue.DefaultQueueConfig)
+
+	// 初始化数据库：转码完成后需要把产物路径写回 videos.file_path
+	if _, err := database.InitDatabase(&cfg.Database); err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
 
 	// Initialize transcode service
 	transcodeService := services.NewTranscodeService(taskQueue, cfg.Storage.VideoDir)

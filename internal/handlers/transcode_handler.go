@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lixiandea/video_server/internal/services"
+	"github.com/lixiandea/video_server/internal/utils"
 	"github.com/lixiandea/video_server/pkg/queue"
 )
 
@@ -27,13 +28,13 @@ func NewTranscodeHandler(transcodeService *services.TranscodeService, taskQueue 
 func (h *TranscodeHandler) GetTaskStatus(c *gin.Context) {
 	taskID := c.Param("task_id")
 	if taskID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Task ID required"})
+		utils.Fail(c, http.StatusBadRequest, "Task ID required")
 		return
 	}
 
 	task, err := h.taskQueue.GetTaskStatus(c.Request.Context(), taskID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Task not found"})
+		utils.FailFrom(c, err, "Task not found")
 		return
 	}
 
@@ -42,6 +43,7 @@ func (h *TranscodeHandler) GetTaskStatus(c *gin.Context) {
 		"video_id":      task.VideoID,
 		"status":        task.Status,
 		"progress":      task.Progress,
+		"retries":       task.Retries,
 		"target_format": task.TargetFormat,
 		"quality":       task.Quality,
 		"error":         task.Error,
@@ -55,7 +57,7 @@ func (h *TranscodeHandler) GetTaskStatus(c *gin.Context) {
 func (h *TranscodeHandler) GetQueueStats(c *gin.Context) {
 	stats, err := h.taskQueue.GetQueueStats(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get queue stats"})
+		utils.FailFrom(c, err, "Failed to get queue stats")
 		return
 	}
 
@@ -88,7 +90,7 @@ func (h *TranscodeHandler) ListTasks(c *gin.Context) {
 	ctx := c.Request.Context()
 	stats, err := h.taskQueue.GetQueueStats(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list tasks"})
+		utils.FailFrom(c, err, "Failed to list tasks")
 		return
 	}
 
@@ -106,23 +108,26 @@ func (h *TranscodeHandler) RetryTask(c *gin.Context) {
 
 	task, err := h.taskQueue.GetTaskStatus(c.Request.Context(), taskID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Task not found"})
+		utils.FailFrom(c, err, "Task not found")
 		return
 	}
 
 	if task.Status != queue.TaskStatusFailed {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Can only retry failed tasks"})
+		utils.Fail(c, http.StatusBadRequest, "Can only retry failed tasks")
 		return
 	}
 
-	// 重置任务状态
+	// 重置任务状态（含重试计数，视为人工重试重新开始）
 	task.Status = queue.TaskStatusPending
 	task.Error = ""
 	task.Progress = 0
+	task.Retries = 0
+	task.StartedAt = nil
+	task.CompletedAt = nil
 
 	err = h.taskQueue.EnqueueTranscodeTask(c.Request.Context(), task)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retry task"})
+		utils.FailFrom(c, err, "Failed to retry task")
 		return
 	}
 
@@ -138,12 +143,12 @@ func (h *TranscodeHandler) CancelTask(c *gin.Context) {
 
 	task, err := h.taskQueue.GetTaskStatus(c.Request.Context(), taskID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Task not found"})
+		utils.FailFrom(c, err, "Task not found")
 		return
 	}
 
 	if task.Status == queue.TaskStatusCompleted {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot cancel completed task"})
+		utils.Fail(c, http.StatusBadRequest, "Cannot cancel completed task")
 		return
 	}
 
