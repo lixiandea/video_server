@@ -18,7 +18,9 @@ func main() {
     cfg := loadSchedulerConfig()
     
     // Initialize database
-    database.InitDatabase(&cfg.Database)
+    if _, err := database.InitDatabase(&cfg.Database); err != nil {
+        log.Fatal("Database initialization failed: ", err)
+    }
     
     // Initialize storage
     storageService := storage.NewStorageService(&cfg.Storage)
@@ -69,6 +71,10 @@ func loadSchedulerConfig() *config.Config {
     viper.BindEnv("database.user", "DB_USER")
     viper.BindEnv("database.password", "DB_PASSWORD")
     viper.BindEnv("database.name", "DB_NAME")
+
+    // Bind storage directories so the cleanup job uses the mounted volume
+    viper.BindEnv("storage.video_dir", "STORAGE_VIDEO_DIR")
+    viper.BindEnv("storage.temp_dir", "STORAGE_TEMP_DIR")
 
     // Set defaults
     viper.SetDefault("server.port", "8089")

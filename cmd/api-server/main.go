@@ -14,6 +14,7 @@ import (
 	"github.com/lixiandea/video_server/internal/handlers"
 	"github.com/lixiandea/video_server/internal/middleware"
 	"github.com/lixiandea/video_server/internal/services"
+	"github.com/lixiandea/video_server/pkg/auth"
 	"github.com/lixiandea/video_server/pkg/database"
 	"github.com/lixiandea/video_server/pkg/logging"
 	"github.com/lixiandea/video_server/pkg/metrics"
@@ -33,8 +34,16 @@ func main() {
 	}
 	defer logging.Sync()
 
+	// The JWT secret is mandatory: fail fast instead of signing with a weak default.
+	if err := auth.InitJWT(cfg.Server.JWTSecret); err != nil {
+		log.Fatal("Invalid JWT configuration: ", err)
+	}
+
 	// Initialize database
-	database.InitDatabase(&cfg.Database)
+	if _, err := database.InitDatabase(&cfg.Database); err != nil {
+		logging.GetLogger().Error("Failed to initialize database", zap.Error(err))
+		log.Fatal("Database initialization failed: ", err)
+	}
 
 	// Initialize Redis
 	redisCfg := &redis.Config{
@@ -97,6 +106,7 @@ func main() {
 
 	// Setup routes
 	r := gin.New()
+	r.MaxMultipartMemory = 8 << 20 // 8 MB，其余部分落盘，避免大文件常驻内存
 
 	// Global middleware
 	r.Use(middleware.CORSMiddleware(cfg.Server.CORS.AllowedOrigins))
@@ -120,6 +130,16 @@ func main() {
 	{
 		public.POST("/users/register", userHandler.Register)
 		public.POST("/users/login", userHandler.Login)
+		// 视频列表 / 搜索：首页与列表页对未登录用户可见
+		public.GET("/videos", videoHandler.ListVideos)
+	}
+
+	// Stream routes: <video src> cannot send headers, so StreamAuthMiddleware
+	// accepts either a Bearer token or a short-lived ?token= playback token.
+	stream := r.Group("/api/v1")
+	stream.Use(middleware.StreamAuthMiddleware())
+	{
+		stream.GET("/videos/:video_id/stream", videoHandler.GetVideoStream)
 	}
 
 	// Protected routes
@@ -134,7 +154,8 @@ func main() {
 		// Video routes
 		protected.POST("/videos/upload", videoHandler.UploadVideo)
 		protected.GET("/videos/:video_id", videoHandler.GetVideoInfo)
-		protected.GET("/videos/:video_id/stream", videoHandler.GetVideoStream)
+		protected.GET("/videos/:video_id/related", videoHandler.GetRelatedVideos)
+		protected.GET("/videos/:video_id/stream-token", videoHandler.CreateStreamToken)
 		protected.GET("/users/videos", videoHandler.GetUserVideos)
 		protected.DELETE("/videos/:video_id", videoHandler.DeleteVideo)
 
