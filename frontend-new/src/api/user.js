@@ -1,12 +1,13 @@
 import apiClient from './client'
 
 const userApi = {
-  // 后端仅支持用户名 + 密码，没有邮箱字段
-  register(username, password) {
-    return apiClient.post('/users/register', {
-      username,
-      password
-    })
+  // 邮箱为可选字段：未填写时不提交该键，后端按「未填写」处理
+  register(username, password, email) {
+    const payload = { username, password }
+    if (email) {
+      payload.email = email
+    }
+    return apiClient.post('/users/register', payload)
   },
 
   login(username, password) {
@@ -20,7 +21,7 @@ const userApi = {
     return apiClient.get('/users/profile')
   },
 
-  // 后端 PUT /users/profile 目前只接受 username / password
+  // 后端 PUT /users/profile 支持 username / password / email / bio
   updateProfile(data) {
     return apiClient.put('/users/profile', data)
   },

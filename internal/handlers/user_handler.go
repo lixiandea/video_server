@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lixiandea/video_server/internal/services"
@@ -29,6 +30,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 	var req struct {
 		Username string `json:"username" binding:"required"`
 		Password string `json:"password" binding:"required"`
+		Email    string `json:"email"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -50,6 +52,11 @@ func (h *UserHandler) Register(c *gin.Context) {
 		utils.Fail(c, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := validation.ValidateEmail(req.Email); err != nil {
+		logging.GetLogger().Warn("Email validation failed", zap.Error(err))
+		utils.Fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	// Check if user already exists
 	_, err := h.userService.GetUserByUsername(req.Username)
@@ -59,7 +66,16 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.CreateUser(req.Username, req.Password)
+	if taken, err := h.userService.IsEmailTaken(req.Email, 0); err != nil {
+		logging.GetLogger().Error("Failed to check email availability", zap.Error(err))
+		utils.FailFrom(c, err, "Failed to create user")
+		return
+	} else if taken {
+		utils.Fail(c, http.StatusConflict, "Email already exists")
+		return
+	}
+
+	user, err := h.userService.CreateUser(req.Username, req.Password, req.Email)
 	if err != nil {
 		logging.GetLogger().Error("Failed to create user", 
 			zap.String("username", req.Username), 
@@ -170,8 +186,10 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
     }
 
     c.JSON(http.StatusOK, gin.H{
-        "user_id":  user.ID,
-        "username": user.LoginName,
+        "user_id":    user.ID,
+        "username":   user.LoginName,
+        "email":      user.Email,
+        "bio":        user.Bio,
         "created_at": user.CreatedAt,
     })
 }
@@ -186,6 +204,8 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
     var req struct {
         Username string `json:"username"`
         Password string `json:"password"`
+        Email    *string `json:"email"`
+        Bio      *string `json:"bio"`
     }
 
     if err := c.ShouldBindJSON(&req); err != nil {
@@ -212,6 +232,28 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
             return
         }
         updates["pwd"] = hashedPwd
+    }
+    if req.Email != nil {
+        email := strings.TrimSpace(*req.Email)
+        if err := validation.ValidateEmail(email); err != nil {
+            utils.Fail(c, http.StatusBadRequest, err.Error())
+            return
+        }
+        if taken, err := h.userService.IsEmailTaken(email, userID.(uint)); err != nil {
+            utils.FailFrom(c, err, "Failed to update user")
+            return
+        } else if taken {
+            utils.Fail(c, http.StatusConflict, "Email already exists")
+            return
+        }
+        updates["email"] = email
+    }
+    if req.Bio != nil {
+        if err := validation.ValidateBio(*req.Bio); err != nil {
+            utils.Fail(c, http.StatusBadRequest, err.Error())
+            return
+        }
+        updates["bio"] = *req.Bio
     }
 
     if len(updates) == 0 {

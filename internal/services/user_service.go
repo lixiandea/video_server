@@ -41,7 +41,7 @@ func (s *UserService) invalidateUserCache(id uint) {
     _ = s.cache.Delete(context.Background(), userCacheKey(id))
 }
 
-func (s *UserService) CreateUser(username, password string) (*models.User, error) {
+func (s *UserService) CreateUser(username, password, email string) (*models.User, error) {
     hashedPwd, err := auth.HashPassword(password)
     if err != nil {
         return nil, fmt.Errorf("failed to hash password: %w", err)
@@ -50,6 +50,7 @@ func (s *UserService) CreateUser(username, password string) (*models.User, error
     user := &models.User{
         LoginName: username,
         Pwd:       hashedPwd,
+        Email:     email,
     }
 
     result := s.db.Create(user)
@@ -75,6 +76,26 @@ func (s *UserService) AuthenticateUser(username, password string) (*models.User,
     }
 
     return &user, nil
+}
+
+// IsEmailTaken 判断邮箱是否已被其他账号占用。excludeUserID 用于资料更新时排除自己。
+// 邮箱为空表示不填写，不参与唯一性判断。
+func (s *UserService) IsEmailTaken(email string, excludeUserID uint) (bool, error) {
+    if email == "" {
+        return false, nil
+    }
+
+    query := s.db.Model(&models.User{}).Where("email = ?", email)
+    if excludeUserID > 0 {
+        query = query.Where("id <> ?", excludeUserID)
+    }
+
+    var count int64
+    if err := query.Count(&count).Error; err != nil {
+        return false, fmt.Errorf("database error: %w", err)
+    }
+
+    return count > 0, nil
 }
 
 func (s *UserService) GetUserByID(id uint) (*models.User, error) {

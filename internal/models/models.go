@@ -16,6 +16,9 @@ type User struct {
     BaseModel
     LoginName string      `gorm:"uniqueIndex;not null;type:varchar(255)" json:"login_name"`
     Pwd       string      `gorm:"not null" json:"pwd"`
+    // Email / Bio 为可选资料字段，空字符串表示未填写
+    Email     string      `gorm:"type:varchar(255);default:''" json:"email"`
+    Bio       string      `gorm:"type:varchar(500);default:''" json:"bio"`
 }
 
 type Video struct {

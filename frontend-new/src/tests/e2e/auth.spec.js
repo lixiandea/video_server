@@ -29,6 +29,7 @@ test.describe('用户认证', () => {
     await expect(page.locator('#username')).toBeVisible()
     await expect(page.locator('#password')).toBeVisible()
     await expect(page.locator('#confirmPassword')).toBeVisible()
+    await expect(page.locator('#email')).toBeVisible()
   })
 
   test('应该可以从登录页跳转到注册页', async ({ page }) => {

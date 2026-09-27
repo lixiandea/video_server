@@ -45,6 +45,34 @@ func ValidatePassword(password string) error {
     return nil
 }
 
+// emailPattern 只做基本的形状校验（本地部分@域名.顶级域），不追求 RFC 完整性。
+var emailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
+
+// ValidateEmail 校验邮箱格式。空字符串表示未填写，直接视为通过。
+func ValidateEmail(email string) error {
+    email = strings.TrimSpace(email)
+    if email == "" {
+        return nil
+    }
+    if len(email) > 255 {
+        return fmt.Errorf("email must be at most 255 characters")
+    }
+    if !emailPattern.MatchString(email) {
+        return fmt.Errorf("invalid email format")
+    }
+
+    return nil
+}
+
+// ValidateBio 校验个人简介长度。空字符串表示未填写，直接视为通过。
+func ValidateBio(bio string) error {
+    if len([]rune(bio)) > 200 {
+        return fmt.Errorf("bio must be at most 200 characters")
+    }
+
+    return nil
+}
+
 // ErrFileTooLarge 表示上传文件超过允许的最大体积
 var ErrFileTooLarge = errors.New("file too large")
 

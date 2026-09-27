@@ -30,7 +30,17 @@
                   >
                 </div>
                 
-                <!-- 后端 users 表没有邮箱字段，注册仅需用户名与密码 -->
+                <div class="mb-3">
+                  <label for="email" class="form-label">邮箱（选填）</label>
+                  <input 
+                    type="email" 
+                    class="form-control" 
+                    id="email" 
+                    v-model="email"
+                    placeholder="example@domain.com"
+                  >
+                </div>
+                
                 <div class="mb-3">
                   <label for="password" class="form-label">密码</label>
                   <input 
@@ -87,6 +97,7 @@ import userApi from '@/api/user'
 const router = useRouter()
 
 const username = ref('')
+const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const loading = ref(false)
@@ -111,11 +122,16 @@ const handleRegister = async () => {
     error.value = '密码长度至少为 6 位'
     return
   }
+
+  if (email.value && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value)) {
+    error.value = '邮箱格式不正确'
+    return
+  }
   
   loading.value = true
   
   try {
-    await userApi.register(username.value, password.value)
+    await userApi.register(username.value, password.value, email.value)
     success.value = true
     
     setTimeout(() => {

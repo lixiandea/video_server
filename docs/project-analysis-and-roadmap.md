@@ -527,6 +527,40 @@
 
 **遗留**：访问令牌仍为固定 24h 有效期，未引入刷新令牌；注销账户使用软删除，用户名受 `login_name` 唯一索引限制不可立即复用。
 
+### 5.20 P1-11a 用户字段（email / bio）实施记录（2026-09-27）
+
+P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可验收单元」拆成三批推进，本节只覆盖用户字段。
+
+**改动**
+
+| 文件 | 改动 |
+| --- | --- |
+| `internal/models/models.go` | `User` 新增 `Email`（varchar(255)）与 `Bio`（varchar(500)），`default:''` 保证既有行迁移后为空串 |
+| `pkg/validation/validation.go` | 新增 `ValidateEmail`（空串视为未填写）、`ValidateBio`（≤200 字） |
+| `internal/services/user_service.go` | `CreateUser` 接收 `email`；新增 `IsEmailTaken`（支持排除自己，供资料更新使用） |
+| `internal/handlers/user_handler.go` | 注册接受可选 `email` 并做格式与占用校验；`GetProfile` 返回 `email`/`bio`；`UpdateProfile` 支持 `email`/`bio`（指针区分「未提交」与「清空」） |
+| `frontend-new/src/api/user.js` | `register(username, password, email)`，邮箱为空时不提交该键 |
+| `frontend-new/src/views/Register.vue` | 新增可选邮箱输入与前端格式校验 |
+| `frontend-new/src/views/Profile.vue` | 恢复邮箱 / 简介输入与展示，资料卡显示邮箱与简介 |
+| `frontend-new/src/tests/e2e/auth.spec.js` | 注册表单用例恢复 `#email` 可见性断言 |
+
+**验收结果**
+
+| 场景 | 结果 |
+| --- | --- |
+| 注册携带邮箱 → `/users/profile` 与 DB | ✅ 一致回显 |
+| 非法邮箱 / 重复邮箱 | ✅ 400 / 409 |
+| 不提交或提交空邮箱 | ✅ 201，资料中为空串 |
+| 更新 email + bio | ✅ 200，DB 落库 |
+| 更新为他人邮箱 / 非法邮箱 / 超长 bio | ✅ 409 / 400 / 400 |
+| 清空 bio（`{"bio":""}`） | ✅ 200，回显为空 |
+| 专项验收脚本（17 项） | ✅ 17 PASS / 0 FAIL |
+| `test-api.sh` 回归 | ✅ 13/13 |
+| `go build ./...` / `go vet ./...` | ✅ 通过 |
+| `cd frontend-new && npx vitest run` | ✅ 3 文件 / 22 用例 |
+
+**遗留**：`email` 只有普通索引而非唯一索引（历史行均为空串，唯一索引会互相冲突），唯一性由 service 层在写入前校验，并发下存在极小概率竞态。
+
 ## 6. 实施约定
 
 - 一次只推进一个任务，独立提交，保持可回滚。
@@ -553,7 +587,7 @@
 - [x] P1-8 统一 DDL 与模型（`init.sql` 仅引导 `users`，逐表迁移容错）
 - [x] P1-9 串行化启动迁移（MySQL `GET_LOCK`）
 - [x] P1-10 队列统计容错（`NOGROUP` → pending=0）
-- [ ] P1-11 扩展视频/用户字段（点赞、播放量、封面、时长、简介、邮箱）
+- [ ] P1-11 扩展视频/用户字段（拆分推进：**P1-11a 用户 email/bio ✅ 已完成**；P1-11b 视频封面/播放量/时长/简介、P1-11c 点赞 待办）
 - [ ] P2-1 合并 cmd/worker
 - [ ] P2-2 前端收敛与产物出库
 - [ ] P2-3 限流器淘汰与可观测性加固

@@ -15,7 +15,6 @@
                 <i class="bi bi-check-circle"></i> 保存成功
               </div>
               
-              <!-- 后端 users 表只有登录名与密码，暂不支持邮箱 / 简介 -->
               <form @submit.prevent="handleUpdate">
                 <div class="mb-3">
                   <label for="username" class="form-label">用户名</label>
@@ -25,6 +24,29 @@
                     id="username" 
                     v-model="profile.username"
                   >
+                </div>
+                
+                <div class="mb-3">
+                  <label for="email" class="form-label">邮箱</label>
+                  <input 
+                    type="email" 
+                    class="form-control" 
+                    id="email" 
+                    v-model="profile.email"
+                    placeholder="选填，用于账号找回"
+                  >
+                </div>
+                
+                <div class="mb-3">
+                  <label for="bio" class="form-label">个人简介</label>
+                  <textarea 
+                    class="form-control" 
+                    id="bio" 
+                    rows="3" 
+                    maxlength="200"
+                    v-model="profile.bio"
+                    placeholder="选填，最多 200 字"
+                  ></textarea>
                 </div>
                 
                 <div class="d-flex gap-2">
@@ -86,7 +108,8 @@
                 <span class="display-4">{{ profile.username?.charAt(0).toUpperCase() }}</span>
               </div>
               <h4>{{ profile.username }}</h4>
-              <p class="text-muted">已登录</p>
+              <p class="text-muted mb-1">{{ profile.email || '未填写邮箱' }}</p>
+              <p class="text-muted small">{{ profile.bio || '这个人很懒，什么都没写' }}</p>
             </div>
           </div>
           
@@ -119,7 +142,9 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const profile = reactive({
-  username: ''
+  username: '',
+  email: '',
+  bio: ''
 })
 
 const loading = ref(false)
@@ -138,6 +163,8 @@ async function loadProfile() {
     const response = await userApi.getProfile()
     const data = response.data
     profile.username = data.username || ''
+    profile.email = data.email || ''
+    profile.bio = data.bio || ''
   } catch (err) {
     error.value = '加载个人信息失败'
   }
@@ -161,7 +188,11 @@ async function handleUpdate() {
   success.value = false
   
   try {
-    await userApi.updateProfile({ username: profile.username })
+    await userApi.updateProfile({
+      username: profile.username,
+      email: profile.email,
+      bio: profile.bio
+    })
     success.value = true
     userStore.user = { ...userStore.user, username: profile.username }
     localStorage.setItem('user', JSON.stringify(userStore.user))
