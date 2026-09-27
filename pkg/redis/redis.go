@@ -134,7 +134,18 @@ func (cm *CacheManager) Delete(ctx context.Context, keys ...string) error {
 		return fmt.Errorf("redis client not available")
 	}
 
-	return cm.client.Del(ctx, keys...).Err()
+	if len(keys) == 0 {
+		return nil
+	}
+
+	if err := cm.client.Del(ctx, keys...).Err(); err != nil {
+		cm.logger.Warn("Failed to delete cache",
+			zap.Strings("keys", keys),
+			zap.Error(err))
+		return err
+	}
+
+	return nil
 }
 
 // Exists 检查键是否存在

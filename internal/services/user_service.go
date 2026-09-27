@@ -9,6 +9,7 @@ import (
     "github.com/lixiandea/video_server/internal/models"
     "github.com/lixiandea/video_server/pkg/auth"
     "github.com/lixiandea/video_server/pkg/database"
+    apperrors "github.com/lixiandea/video_server/pkg/errors"
     "github.com/lixiandea/video_server/pkg/redis"
     "gorm.io/gorm"
 )
@@ -23,6 +24,20 @@ func NewUserService() *UserService {
         db:    database.GetDB(),
         cache: redis.NewCacheManager(redis.GetClient()),
     }
+}
+
+// userCacheKey 定义用户缓存的键名，读写两侧必须共用同一规则。
+func userCacheKey(id uint) string {
+    return fmt.Sprintf("user:%d", id)
+}
+
+// invalidateUserCache 在写操作后清除缓存，避免继续返回旧数据。
+// 缓存删除失败不应阻断写操作，CacheManager 内部已记录告警。
+func (s *UserService) invalidateUserCache(id uint) {
+    if s.cache == nil {
+        return
+    }
+    _ = s.cache.Delete(context.Background(), userCacheKey(id))
 }
 
 func (s *UserService) CreateUser(username, password string) (*models.User, error) {
@@ -48,14 +63,14 @@ func (s *UserService) AuthenticateUser(username, password string) (*models.User,
     var user models.User
     result := s.db.Where("login_name = ?", username).First(&user)
     if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-        return nil, fmt.Errorf("user not found")
+        return nil, apperrors.NotFoundf("user not found")
     }
     if result.Error != nil {
         return nil, fmt.Errorf("database error: %w", result.Error)
     }
 
     if !auth.CheckPasswordHash(password, user.Pwd) {
-        return nil, fmt.Errorf("invalid credentials")
+        return nil, apperrors.Unauthorizedf("invalid credentials")
     }
 
     return &user, nil
@@ -63,7 +78,7 @@ func (s *UserService) AuthenticateUser(username, password string) (*models.User,
 
 func (s *UserService) GetUserByID(id uint) (*models.User, error) {
     ctx := context.Background()
-    cacheKey := fmt.Sprintf("user:%d", id)
+    cacheKey := userCacheKey(id)
     var user models.User
 
     // 尝试从缓存获取
@@ -76,7 +91,7 @@ func (s *UserService) GetUserByID(id uint) (*models.User, error) {
     // 从数据库获取
     result := s.db.First(&user, id)
     if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-        return nil, fmt.Errorf("user not found")
+        return nil, apperrors.NotFoundf("user not found")
     }
     if result.Error != nil {
         return nil, fmt.Errorf("database error: %w", result.Error)
@@ -94,7 +109,7 @@ func (s *UserService) GetUserByUsername(username string) (*models.User, error) {
     var user models.User
     result := s.db.Where("login_name = ?", username).First(&user)
     if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-        return nil, fmt.Errorf("user not found")
+        return nil, apperrors.NotFoundf("user not found")
     }
     if result.Error != nil {
         return nil, fmt.Errorf("database error: %w", result.Error)
@@ -109,9 +124,10 @@ func (s *UserService) UpdateUser(id uint, updates map[string]interface{}) error 
         return fmt.Errorf("failed to update user: %w", result.Error)
     }
     if result.RowsAffected == 0 {
-        return fmt.Errorf("user not found")
+        return apperrors.NotFoundf("user not found")
     }
 
+    s.invalidateUserCache(id)
     return nil
 }
 
@@ -121,5 +137,6 @@ func (s *UserService) DeleteUser(id uint) error {
         return fmt.Errorf("failed to delete user: %w", result.Error)
     }
 
+    s.invalidateUserCache(id)
     return nil
 }
