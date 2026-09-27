@@ -3,6 +3,7 @@ package config
 import (
     "github.com/spf13/viper"
     "log"
+    "os"
     "strings"
 )
 
@@ -19,7 +20,14 @@ type ServerConfig struct {
     ReadTimeout  int    `mapstructure:"read_timeout"`  // seconds
     WriteTimeout int    `mapstructure:"write_timeout"` // seconds
     MaxFileSize  int64  `mapstructure:"max_file_size"` // bytes
+    JWTSecret    string `mapstructure:"jwt_secret"`    // from JWT_SECRET env
+    StreamTokenTTL int  `mapstructure:"stream_token_ttl"` // seconds, playback token lifetime
     RateLimit    RateLimitConfig `mapstructure:"rate_limit"`
+    CORS         CORSConfig      `mapstructure:"cors"`
+}
+
+type CORSConfig struct {
+    AllowedOrigins []string `mapstructure:"allowed_origins"`
 }
 
 type RateLimitConfig struct {
@@ -65,11 +73,14 @@ func LoadConfig() *Config {
     viper.SetDefault("server.rate_limit.enabled", true)
     viper.SetDefault("server.rate_limit.rate", 10.0)
     viper.SetDefault("server.rate_limit.burst", 20)
+    viper.SetDefault("server.jwt_secret", "")
+    viper.SetDefault("server.stream_token_ttl", 7200) // 2h
+    viper.SetDefault("server.cors.allowed_origins", []string{"http://localhost:3000"})
 
     viper.SetDefault("database.host", "localhost")
     viper.SetDefault("database.port", 3306)
     viper.SetDefault("database.user", "root")
-    viper.SetDefault("database.password", "password")
+    viper.SetDefault("database.password", "")
     viper.SetDefault("database.name", "video_server")
     viper.SetDefault("database.charset", "utf8mb4")
 
@@ -100,6 +111,19 @@ func LoadConfig() *Config {
     // Bind environment variables for redis
     viper.BindEnv("redis.addr", "REDIS_ADDR")
     viper.BindEnv("redis.password", "REDIS_PASSWORD")
+
+    // Bind JWT secret: no default, so a missing value fails fast at startup
+    viper.BindEnv("server.jwt_secret", "JWT_SECRET")
+    viper.BindEnv("server.stream_token_ttl", "STREAM_TOKEN_TTL")
+
+    // Bind storage directories so containers can mount them explicitly
+    viper.BindEnv("storage.video_dir", "STORAGE_VIDEO_DIR")
+    viper.BindEnv("storage.temp_dir", "STORAGE_TEMP_DIR")
+
+    // Allow containers to override the CORS allowlist with a comma-separated list
+    if origins := os.Getenv("CORS_ALLOWED_ORIGINS"); origins != "" {
+        viper.Set("server.cors.allowed_origins", strings.Split(origins, ","))
+    }
 
     viper.SetConfigName("config")
     viper.SetConfigType("yaml")

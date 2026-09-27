@@ -14,7 +14,8 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: Cz05180921.
+          # CI-only throwaway password; set CI_MYSQL_ROOT_PASSWORD to override it.
+          MYSQL_ROOT_PASSWORD: ${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'ci-only-throwaway' }}
           MYSQL_DATABASE: video_server_test
         options: >-
           --health-cmd "mysqladmin ping"
@@ -44,14 +45,18 @@ jobs:
 
     - name: Initialize database
       run: |
-        mysql -h 127.0.0.1 -P 3306 -u root -pCz05180921. video_server_test < docker/mysql/init.sql
+        mysql -h 127.0.0.1 -P 3306 -u root -p"${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'ci-only-throwaway' }}" video_server_test < docker/mysql/init.sql
 
     - name: Build services
       run: ./build.sh
 
     - name: Run API server in background
       run: |
-        DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=root DB_PASSWORD=Cz05180921. DB_NAME=video_server_test ./bin/api-server &
+        DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=root \
+          DB_PASSWORD="${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'ci-only-throwaway' }}" \
+          DB_NAME=video_server_test \
+          JWT_SECRET="${{ secrets.CI_JWT_SECRET || 'ci-only-jwt-secret-at-least-32-characters' }}" \
+          ./bin/api-server &
         sleep 5
 
     - name: Run comprehensive API tests

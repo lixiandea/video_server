@@ -9,7 +9,7 @@ database:
   host: "localhost"  # Will be overwritten by environment variable in Docker
   port: 3306
   user: "root"
-  password: "Cz05180921."
+  password: ""  # Injected via DB_PASSWORD; never store plaintext passwords here
   name: "video_server"
   charset: "utf8mb4"
 
