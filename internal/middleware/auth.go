@@ -9,13 +9,40 @@ import (
     "github.com/gin-gonic/gin"
     "github.com/lixiandea/video_server/internal/utils"
     "github.com/lixiandea/video_server/pkg/auth"
+    apperrors "github.com/lixiandea/video_server/pkg/errors"
     "github.com/lixiandea/video_server/pkg/logging"
     "go.uber.org/zap"
     "golang.org/x/time/rate"
 )
 
-// AuthMiddleware validates JWT tokens
-func AuthMiddleware() gin.HandlerFunc {
+// SessionValidator 校验访问令牌中的会话是否仍然有效（未被登出且未过期）。
+// JWT 自身无法撤销，因此令牌只携带 session_id，真实状态以会话记录为准。
+type SessionValidator interface {
+    ValidateSession(sessionID string, userID uint) error
+}
+
+// validateSession 在签名校验通过后追加会话校验。
+// 会话类错误按 401 返回，数据库等故障按 500 返回，避免把故障误报成「令牌无效」。
+func validateSession(sessions SessionValidator, c *gin.Context, claims *auth.Claims) bool {
+    if sessions == nil {
+        logging.GetLogger().Error("Session validator is not configured")
+        utils.Fail(c, http.StatusInternalServerError, "Authentication is misconfigured")
+        return false
+    }
+
+    if err := sessions.ValidateSession(claims.SessionID, claims.UserID); err != nil {
+        logging.GetLogger().Warn("Session validation failed",
+            zap.Uint("user_id", claims.UserID),
+            zap.Error(err))
+        utils.Fail(c, apperrors.StatusCode(err), apperrors.Message(err, "Invalid or expired session"))
+        return false
+    }
+
+    return true
+}
+
+// AuthMiddleware validates JWT tokens and the session they were issued for
+func AuthMiddleware(sessions SessionValidator) gin.HandlerFunc {
     return func(c *gin.Context) {
         authHeader := c.GetHeader("Authorization")
         if authHeader == "" {
@@ -39,6 +66,10 @@ func AuthMiddleware() gin.HandlerFunc {
             return
         }
 
+        if !validateSession(sessions, c, claims) {
+            return
+        }
+
         // Set user info in context
         c.Set("user_id", claims.UserID)
         c.Set("username", claims.Username)
@@ -50,12 +81,15 @@ func AuthMiddleware() gin.HandlerFunc {
 
 // StreamAuthMiddleware 仅用于播放路由。媒体元素（<video src>）无法设置请求头，
 // 因此除标准 Authorization 头外，还接受 URL 上的短时效播放令牌。
-func StreamAuthMiddleware() gin.HandlerFunc {
+func StreamAuthMiddleware(sessions SessionValidator) gin.HandlerFunc {
     return func(c *gin.Context) {
         videoID := c.Param("video_id")
 
         if authHeader := c.GetHeader("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
             if claims, err := auth.ParseJWT(strings.TrimPrefix(authHeader, "Bearer ")); err == nil {
+                if !validateSession(sessions, c, claims) {
+                    return
+                }
                 c.Set("user_id", claims.UserID)
                 c.Set("username", claims.Username)
                 c.Set("session_id", claims.SessionID)

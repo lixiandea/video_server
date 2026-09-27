@@ -497,6 +497,36 @@
 | P1-6 上传 → 转码 → 播放（产物 749435 B 与 stream 字节数一致） | ✅ 通过，`XPENDING` = 0 |
 | `:8080/health` / `:8000/` / `:9090/-/healthy` | ✅ 200 / 200 / 200 |
 
+### 5.19 P1-7 实施记录（2026-09-27）
+
+**改动**
+
+| 文件 | 改动 |
+| --- | --- |
+| `internal/models/models.go` | `Session.UserID` 增加索引；`TTL` 重命名为 `ExpiresAt`（列名仍为 `ttl`，不产生重命名 DDL），语义明确为 Unix 秒 |
+| `pkg/auth/auth.go` | 导出 `AccessTokenTTL`（24h），令牌过期时间与会话过期时间共用同一常量 |
+| `internal/services/session_service.go`（新增） | 会话落地 / 校验 / 吊销 / 过期清理；登出幂等，会话不存在或已过期一律 401 |
+| `internal/middleware/auth.go` | 新增 `SessionValidator`；`AuthMiddleware` 与 `StreamAuthMiddleware` 的 Bearer 分支在签名校验后追加会话校验（会话错误 401、DB 故障 500） |
+| `internal/handlers/user_handler.go` | 注册 / 登录后落库会话；新增 `Logout`、`LogoutAll`；改密后吊销其他设备会话 |
+| `internal/services/user_service.go` | `DeleteUser` 改为事务内级联：会话物理删除、评论软删除、视频标记 `deleted` 并软删除、写入删除台账、最后软删除用户 |
+| `cmd/api-server/main.go` | 注册 `POST /users/logout`、`POST /users/logout-all`；装配会话中间件；每小时清理过期会话 |
+| `frontend-new/src/api/user.js`、`stores/user.js`、`App.vue` | 登出先本地清理再调用后端吊销接口（显式携带登出前的令牌，避免清理后请求缺头） |
+| `test-api.sh` | 新增第 13 项用例「Logout Revokes Session」 |
+
+**验收结果**（重建 api-server 镜像后执行）
+
+| 场景 | 结果 |
+| --- | --- |
+| `test-api.sh` | ✅ 13/13（含新增登出用例） |
+| 注册 / 登录后 `sessions` 落库 | ✅ 每次登录 1 行 |
+| 登出后原令牌访问 `/users/profile` | ✅ 401，其余会话仍 200 |
+| 改密后其他设备会话 | ✅ 401，当前会话保留 200 |
+| 注销账户级联清理 | ✅ 会话清空、视频 `deleted` 且软删除、评论下架、`video_deletion_records` 写入 `Account deleted` |
+| `go build ./...` / `go vet ./...` | ✅ 通过 |
+| `cd frontend-new && npx vitest run` | ✅ 3 文件 / 22 用例（新增登出吊销断言） |
+
+**遗留**：访问令牌仍为固定 24h 有效期，未引入刷新令牌；注销账户使用软删除，用户名受 `login_name` 唯一索引限制不可立即复用。
+
 ## 6. 实施约定
 
 - 一次只推进一个任务，独立提交，保持可回滚。
@@ -519,7 +549,7 @@
 - [x] P1-4 消除 N+1（评论作者名改批量 `IN` 查询，6 条评论 1 次 `users` 查询）
 - [x] P1-5 统一错误码与响应（`utils.Fail`/`FailFrom` 覆盖 90 处；领域错误按 404/401 等返回，DB 错误保持 500）
 - [x] P1-6 转码闭环（产物写回 `file_path` 并用于播放；失败重试上限 3 次；XPENDING+XCLAIM 回收 pending；ffmpeg 缺失不再假成功）
-- [ ] P1-7 会话与账户生命周期
+- [x] P1-7 会话与账户生命周期（会话落库并逐请求校验；登出 / 改密可吊销；注销账户事务级联清理）
 - [x] P1-8 统一 DDL 与模型（`init.sql` 仅引导 `users`，逐表迁移容错）
 - [x] P1-9 串行化启动迁移（MySQL `GET_LOCK`）
 - [x] P1-10 队列统计容错（`NOGROUP` → pending=0）

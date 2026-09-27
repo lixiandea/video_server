@@ -40,6 +40,10 @@ const (
 // 媒体元素无法携带请求头，令牌只能走 URL，因此必须短时效且绑定单个视频。
 const DefaultStreamTokenTTL = 2 * time.Hour
 
+// AccessTokenTTL 访问令牌有效期。会话记录的过期时间与之保持一致，
+// 避免出现「令牌还有效但会话已过期」或反之的窗口。
+const AccessTokenTTL = 24 * time.Hour
+
 type Claims struct {
     UserID    uint   `json:"user_id"`
     Username  string `json:"username"`
@@ -72,7 +76,7 @@ func GenerateJWT(userID uint, username, sessionID string) (string, error) {
         Username:  username,
         SessionID: sessionID,
         RegisteredClaims: jwt.RegisteredClaims{
-            ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+            ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTokenTTL)),
             IssuedAt:  jwt.NewNumericDate(time.Now()),
             Subject:   SubjectAccessToken,
         },

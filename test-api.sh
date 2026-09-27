@@ -244,9 +244,33 @@ function update_comment() {
     fi
 }
 
+# 用一个独立登录的令牌验证登出：登出后该令牌必须立即失效（P1-7）。
+# 这里不复用 $TOKEN，避免影响前面已经使用它的用例。
+function logout_user() {
+    local username=$(jq -r '.username' /tmp/register_response.json)
+    local login_response=$(curl -s -X POST "http://localhost:8080/api/v1/users/login" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\": \"$username\", \"password\": \"TestPass123\"}")
+    local token=$(echo "$login_response" | jq -r '.token')
+
+    if [ -z "$token" ] || [ "$token" = "null" ]; then
+        echo -e "${RED}❌ Failed to obtain a token for the logout test${NC}"
+        return 1
+    fi
+
+    echo "$(curl -s -X POST "http://localhost:8080/api/v1/users/logout" \
+        -H "Authorization: Bearer $token")" | jq .
+
+    local status=$(curl -s -o /dev/null -w '%{http_code}' -X GET "http://localhost:8080/api/v1/users/profile" \
+        -H "Authorization: Bearer $token")
+    echo -e "${CYAN}🔒 Profile with revoked token: HTTP $status (expected 401)${NC}"
+
+    [ "$status" = "401" ]
+}
+
 # Main test execution
 echo -e "${YELLOW}Starting test sequence...${NC}"
-echo -e "${CYAN}📋 Test Plan: Health → Register → Login → Profile → Upload Video → Get Videos → Video Info → Stream → Add Comment → Get Comments → Update Comment → Get Single Comment${NC}"
+echo -e "${CYAN}📋 Test Plan: Health → Register → Login → Profile → Upload Video → Get Videos → Video Info → Stream → Add Comment → Get Comments → Update Comment → Get Single Comment → Logout${NC}"
 
 # Basic tests
 run_test "Health Check" "health_check"
@@ -265,6 +289,9 @@ run_test "Add Comment (Success)" "add_comment"
 run_test "Get Comments (Success)" "get_comments"
 run_test "Update Comment (Success)" "update_comment"
 run_test "Get Single Comment (Success)" "get_single_comment"
+
+# Session tests (with success expectation)
+run_test "Logout Revokes Session" "logout_user"
 
 # Cleanup
 echo -e "\n${YELLOW}Cleaning up test files...${NC}"
@@ -289,6 +316,7 @@ if [ $FAILED_TESTS -eq 0 ]; then
     echo -e "   ✅ Video List & Info"
     echo -e "   ✅ Video Streaming"
     echo -e "   ✅ Comment CRUD Operations"
+    echo -e "   ✅ Session Logout & Revocation"
     exit 0
 else
     echo -e "\n${RED}❌ Some tests failed${NC}"

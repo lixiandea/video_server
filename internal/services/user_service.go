@@ -12,6 +12,7 @@ import (
     apperrors "github.com/lixiandea/video_server/pkg/errors"
     "github.com/lixiandea/video_server/pkg/redis"
     "gorm.io/gorm"
+    "gorm.io/gorm/clause"
 )
 
 type UserService struct {
@@ -131,12 +132,70 @@ func (s *UserService) UpdateUser(id uint, updates map[string]interface{}) error 
     return nil
 }
 
+// DeleteUser 注销账户并级联清理其数据：会话、评论、视频一并处理。
+// 全部写入放在同一事务内，避免出现「账号已删但内容残留」的半清理状态。
 func (s *UserService) DeleteUser(id uint) error {
-    result := s.db.Delete(&models.User{}, id)
-    if result.Error != nil {
-        return fmt.Errorf("failed to delete user: %w", result.Error)
+    var videoUUIDs []string
+
+    err := s.db.Transaction(func(tx *gorm.DB) error {
+        // 已被软删除的视频同样需要写台账，因此读取时放开默认作用域。
+        var videos []models.Video
+        if err := tx.Unscoped().Select("uuid").Where("author_id = ?", id).Find(&videos).Error; err != nil {
+            return fmt.Errorf("failed to load user videos: %w", err)
+        }
+        for _, video := range videos {
+            videoUUIDs = append(videoUUIDs, video.UUID)
+        }
+
+        // 会话是凭据，直接物理删除，等效于登出该用户的所有设备。
+        if err := tx.Unscoped().Where("user_id = ?", id).Delete(&models.Session{}).Error; err != nil {
+            return fmt.Errorf("failed to delete user sessions: %w", err)
+        }
+
+        // 评论随账号一并下架，沿用单条删除的软删除语义。
+        if err := tx.Where("author_id = ?", id).Delete(&models.Comment{}).Error; err != nil {
+            return fmt.Errorf("failed to delete user comments: %w", err)
+        }
+
+        // 视频标记为 deleted 后软删除，并留下去重后的删除台账。
+        if err := tx.Model(&models.Video{}).Where("author_id = ?", id).
+            Update("status", "deleted").Error; err != nil {
+            return fmt.Errorf("failed to mark user videos deleted: %w", err)
+        }
+        if err := tx.Where("author_id = ?", id).Delete(&models.Video{}).Error; err != nil {
+            return fmt.Errorf("failed to delete user videos: %w", err)
+        }
+        for _, videoUUID := range videoUUIDs {
+            record := &models.VideoDeletionRecord{
+                VideoUUID: videoUUID,
+                Reason:    "Account deleted",
+            }
+            if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(record).Error; err != nil {
+                return fmt.Errorf("failed to add deletion record: %w", err)
+            }
+        }
+
+        result := tx.Delete(&models.User{}, id)
+        if result.Error != nil {
+            return fmt.Errorf("failed to delete user: %w", result.Error)
+        }
+        if result.RowsAffected == 0 {
+            return apperrors.NotFoundf("user not found")
+        }
+
+        return nil
+    })
+    if err != nil {
+        return err
     }
 
+    // 事务提交后再清缓存，避免回滚后缓存已被清空的空窗。
     s.invalidateUserCache(id)
+    if s.cache != nil {
+        for _, videoUUID := range videoUUIDs {
+            _ = s.cache.Delete(context.Background(), videoCacheKey(videoUUID))
+        }
+    }
+
     return nil
 }

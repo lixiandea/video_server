@@ -42,8 +42,10 @@ type Comment struct {
 type Session struct {
     BaseModel
     UUID      string `gorm:"uniqueIndex;not null;type:varchar(255)" json:"uuid"`
-    UserID    uint   `gorm:"not null" json:"user_id"`
-    TTL       int64  `json:"ttl"`
+    UserID    uint   `gorm:"not null;index" json:"user_id"`
+    // ExpiresAt 是会话到期时间（Unix 秒），与访问令牌有效期保持一致。
+    // 列名沿用历史的 ttl，避免对既有表做重命名 DDL。
+    ExpiresAt int64 `gorm:"column:ttl" json:"expires_at"`
 }
 
 type VideoDeletionRecord struct {

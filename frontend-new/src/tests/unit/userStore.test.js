@@ -1,6 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useUserStore } from '@/stores/user'
+import userApi from '@/api/user'
+
+// Mock userApi：登出会调用后端吊销接口，单元测试不应发起真实请求
+vi.mock('@/api/user', () => ({
+  default: {
+    logout: vi.fn(() => Promise.resolve({})),
+  },
+}))
 
 describe('User Store', () => {
   let userStore
@@ -9,6 +17,7 @@ describe('User Store', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     userStore = useUserStore()
+    vi.clearAllMocks()
   })
 
   it('应该初始化时未登录状态', () => {
@@ -40,6 +49,14 @@ describe('User Store', () => {
     expect(userStore.user).toBe(null)
     expect(userStore.isLoggedIn).toBe(false)
     expect(localStorage.getItem('token')).toBe(null)
+  })
+
+  it('退出登录时应该通知后端吊销会话', async () => {
+    userStore.setAuth('test-token-123', { id: 1, username: 'testuser' })
+
+    await userStore.logout()
+
+    expect(userApi.logout).toHaveBeenCalledWith('test-token-123')
   })
 
   it('应该检查认证状态', () => {

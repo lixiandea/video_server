@@ -86,8 +86,8 @@ onMounted(() => {
   userStore.checkAuth()
 })
 
-const handleLogout = () => {
-  userStore.logout()
+const handleLogout = async () => {
+  await userStore.logout()
   router.push('/login')
 }
 </script>

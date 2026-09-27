@@ -14,12 +14,14 @@ import (
 )
 
 type UserHandler struct {
-	userService *services.UserService
+	userService    *services.UserService
+	sessionService *services.SessionService
 }
 
 func NewUserHandler() *UserHandler {
 	return &UserHandler{
-		userService: services.NewUserService(),
+		userService:    services.NewUserService(),
+		sessionService: services.NewSessionService(),
 	}
 }
 
@@ -66,8 +68,15 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT token
+	// Generate JWT token and persist the session so it can be revoked later
 	sessionID := auth.GenerateSessionID()
+	if err := h.sessionService.CreateSession(user.ID, sessionID); err != nil {
+		logging.GetLogger().Error("Failed to create session",
+			zap.Uint("user_id", user.ID),
+			zap.Error(err))
+		utils.FailFrom(c, err, "Failed to create session")
+		return
+	}
 	token, err := auth.GenerateJWT(user.ID, user.LoginName, sessionID)
 	if err != nil {
 		logging.GetLogger().Error("Failed to generate token", zap.Error(err))
@@ -114,8 +123,15 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT token
+	// Generate JWT token and persist the session so it can be revoked later
 	sessionID := auth.GenerateSessionID()
+	if err := h.sessionService.CreateSession(user.ID, sessionID); err != nil {
+		logging.GetLogger().Error("Failed to create session",
+			zap.Uint("user_id", user.ID),
+			zap.Error(err))
+		utils.FailFrom(c, err, "Failed to create session")
+		return
+	}
 	token, err := auth.GenerateJWT(user.ID, user.LoginName, sessionID)
 	if err != nil {
 		logging.GetLogger().Error("Failed to generate token", zap.Error(err))
@@ -209,7 +225,44 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
         return
     }
 
+    // 改密后吊销其他设备上的会话，避免旧令牌在有效期内继续可用。
+    if _, passwordChanged := updates["pwd"]; passwordChanged {
+        if _, err := h.sessionService.RevokeUserSessionsExcept(userID.(uint), c.GetString("session_id")); err != nil {
+            logging.GetLogger().Warn("Failed to revoke other sessions", zap.Error(err))
+        }
+    }
+
     c.JSON(http.StatusOK, gin.H{"message": "Profile updated successfully"})
+}
+
+// Logout 吊销当前会话。令牌本身仍在有效期内，但再次使用会因会话不存在而返回 401。
+func (h *UserHandler) Logout(c *gin.Context) {
+    if err := h.sessionService.RevokeSession(c.GetString("session_id")); err != nil {
+        utils.FailFrom(c, err, "Failed to sign out")
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Signed out successfully"})
+}
+
+// LogoutAll 吊销该用户在其它设备上的会话，保留当前会话继续可用。
+func (h *UserHandler) LogoutAll(c *gin.Context) {
+    userID, exists := c.Get("user_id")
+    if !exists {
+        utils.Fail(c, http.StatusUnauthorized, "Unauthorized")
+        return
+    }
+
+    revoked, err := h.sessionService.RevokeUserSessionsExcept(userID.(uint), c.GetString("session_id"))
+    if err != nil {
+        utils.FailFrom(c, err, "Failed to sign out other devices")
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "message":           "Signed out from other devices",
+        "revoked_sessions":  revoked,
+    })
 }
 
 func (h *UserHandler) DeleteAccount(c *gin.Context) {

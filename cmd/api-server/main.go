@@ -88,6 +88,7 @@ func main() {
 	}
 
 	// Initialize handlers
+	sessionService := services.NewSessionService()
 	userHandler := handlers.NewUserHandler()
 	videoHandler := handlers.NewVideoHandler(storageService, cfg, transcodeService, taskQueue)
 	commentHandler := handlers.NewCommentHandler()
@@ -137,19 +138,21 @@ func main() {
 	// Stream routes: <video src> cannot send headers, so StreamAuthMiddleware
 	// accepts either a Bearer token or a short-lived ?token= playback token.
 	stream := r.Group("/api/v1")
-	stream.Use(middleware.StreamAuthMiddleware())
+	stream.Use(middleware.StreamAuthMiddleware(sessionService))
 	{
 		stream.GET("/videos/:video_id/stream", videoHandler.GetVideoStream)
 	}
 
 	// Protected routes
 	protected := r.Group("/api/v1")
-	protected.Use(middleware.AuthMiddleware())
+	protected.Use(middleware.AuthMiddleware(sessionService))
 	{
 		// User routes
 		protected.GET("/users/profile", userHandler.GetProfile)
 		protected.PUT("/users/profile", userHandler.UpdateProfile)
 		protected.DELETE("/users/account", userHandler.DeleteAccount)
+		protected.POST("/users/logout", userHandler.Logout)
+		protected.POST("/users/logout-all", userHandler.LogoutAll)
 
 		// Video routes
 		protected.POST("/videos/upload", videoHandler.UploadVideo)
@@ -195,6 +198,22 @@ func main() {
 			select {
 			case <-ticker.C:
 				metrics.CollectSystemMetrics()
+			}
+		}
+	}()
+
+	// 清理过期会话：令牌过期后记录即可回收，避免 sessions 表持续增长。
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if removed, err := sessionService.DeleteExpiredSessions(); err != nil {
+					logging.GetLogger().Warn("Failed to delete expired sessions", zap.Error(err))
+				} else if removed > 0 {
+					logging.GetLogger().Info("Deleted expired sessions", zap.Int64("count", removed))
+				}
 			}
 		}
 	}()
