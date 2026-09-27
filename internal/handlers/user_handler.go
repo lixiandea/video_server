@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lixiandea/video_server/internal/services"
+	"github.com/lixiandea/video_server/internal/utils"
 	"github.com/lixiandea/video_server/pkg/auth"
 	"github.com/lixiandea/video_server/pkg/logging"
 	"github.com/lixiandea/video_server/pkg/metrics"
@@ -30,7 +31,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logging.GetLogger().Error("Invalid register request format", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		utils.Fail(c, http.StatusBadRequest, "Invalid request format")
 		return
 	}
 
@@ -39,12 +40,12 @@ func (h *UserHandler) Register(c *gin.Context) {
 		logging.GetLogger().Warn("Username validation failed", 
 			zap.String("username", req.Username), 
 			zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.Fail(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := validation.ValidatePassword(req.Password); err != nil {
 		logging.GetLogger().Warn("Password validation failed", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.Fail(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -52,7 +53,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 	_, err := h.userService.GetUserByUsername(req.Username)
 	if err == nil {
 		logging.GetLogger().Info("Username already exists", zap.String("username", req.Username))
-		c.JSON(http.StatusConflict, gin.H{"error": "Username already exists"})
+		utils.Fail(c, http.StatusConflict, "Username already exists")
 		return
 	}
 
@@ -61,7 +62,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 		logging.GetLogger().Error("Failed to create user", 
 			zap.String("username", req.Username), 
 			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		utils.FailFrom(c, err, "Failed to create user")
 		return
 	}
 
@@ -70,7 +71,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 	token, err := auth.GenerateJWT(user.ID, user.LoginName, sessionID)
 	if err != nil {
 		logging.GetLogger().Error("Failed to generate token", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		utils.FailFrom(c, err, "Failed to generate token")
 		return
 	}
 
@@ -99,7 +100,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logging.GetLogger().Error("Invalid login request format", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		utils.Fail(c, http.StatusBadRequest, "Invalid request format")
 		return
 	}
 
@@ -109,7 +110,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 			zap.String("username", req.Username), 
 			zap.Error(err))
 		metrics.IncAuthFailure()
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		utils.Fail(c, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
 
@@ -118,7 +119,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 	token, err := auth.GenerateJWT(user.ID, user.LoginName, sessionID)
 	if err != nil {
 		logging.GetLogger().Error("Failed to generate token", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		utils.FailFrom(c, err, "Failed to generate token")
 		return
 	}
 
@@ -142,13 +143,13 @@ func (h *UserHandler) Login(c *gin.Context) {
 func (h *UserHandler) GetProfile(c *gin.Context) {
     userID, exists := c.Get("user_id")
     if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+        utils.Fail(c, http.StatusUnauthorized, "Unauthorized")
         return
     }
 
     user, err := h.userService.GetUserByID(userID.(uint))
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user profile"})
+        utils.FailFrom(c, err, "Failed to get user profile")
         return
     }
 
@@ -162,7 +163,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
     userID, exists := c.Get("user_id")
     if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+        utils.Fail(c, http.StatusUnauthorized, "Unauthorized")
         return
     }
 
@@ -172,39 +173,39 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
     }
 
     if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+        utils.Fail(c, http.StatusBadRequest, "Invalid request format")
         return
     }
 
     updates := make(map[string]interface{})
     if req.Username != "" {
         if err := validation.ValidateUsername(req.Username); err != nil {
-            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+            utils.Fail(c, http.StatusBadRequest, err.Error())
             return
         }
         updates["login_name"] = req.Username
     }
     if req.Password != "" {
         if err := validation.ValidatePassword(req.Password); err != nil {
-            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+            utils.Fail(c, http.StatusBadRequest, err.Error())
             return
         }
         hashedPwd, err := auth.HashPassword(req.Password)
         if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+            utils.FailFrom(c, err, "Failed to hash password")
             return
         }
         updates["pwd"] = hashedPwd
     }
 
     if len(updates) == 0 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "No updates provided"})
+        utils.Fail(c, http.StatusBadRequest, "No updates provided")
         return
     }
 
     err := h.userService.UpdateUser(userID.(uint), updates)
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+        utils.FailFrom(c, err, "Failed to update user")
         return
     }
 
@@ -214,13 +215,13 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 func (h *UserHandler) DeleteAccount(c *gin.Context) {
     userID, exists := c.Get("user_id")
     if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+        utils.Fail(c, http.StatusUnauthorized, "Unauthorized")
         return
     }
 
     err := h.userService.DeleteUser(userID.(uint))
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete account"})
+        utils.FailFrom(c, err, "Failed to delete account")
         return
     }
 

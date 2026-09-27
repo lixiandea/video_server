@@ -1,36 +1,43 @@
-// Package utils provides utility functions for the video server
+// Package utils provides utility functions for the video server.
 package utils
 
 import (
-    "encoding/json"
-    "net/http"
+	"errors"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	apperrors "github.com/lixiandea/video_server/pkg/errors"
 )
 
-// Response represents a standard API response
-type Response struct {
-    Success bool        `json:"success"`
-    Message string      `json:"message"`
-    Data    interface{} `json:"data,omitempty"`
-    Error   string      `json:"error,omitempty"`
+// ErrorResponse 是全部接口统一的错误响应体：
+//
+//	{"success": false, "code": 404, "error": "video not found"}
+//
+// 保留 error 字段是为了兼容既有前端（仅读取 error），新增 success/code 便于
+// 调用方按状态码分支处理，无需解析文案。
+type ErrorResponse struct {
+	Success bool   `json:"success"`
+	Code    int    `json:"code"`
+	Error   string `json:"error"`
 }
 
-// SendSuccessResponse sends a success response
-func SendSuccessResponse(w http.ResponseWriter, data interface{}, message string) {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusOK)
-    json.NewEncoder(w).Encode(Response{
-        Success: true,
-        Message: message,
-        Data:    data,
-    })
+// Fail 写入统一错误响应并终止后续处理。
+func Fail(c *gin.Context, status int, message string) {
+	c.AbortWithStatusJSON(status, ErrorResponse{
+		Success: false,
+		Code:    status,
+		Error:   message,
+	})
 }
 
-// SendErrorResponse sends an error response
-func SendErrorResponse(w http.ResponseWriter, errorMsg string, statusCode int) {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(statusCode)
-    json.NewEncoder(w).Encode(Response{
-        Success: false,
-        Error:   errorMsg,
-    })
+// FailFrom 将 service 层错误映射为统一错误响应：
+// 携带 AppError 的错误按其状态码与消息返回（例如资源不存在 → 404），
+// 其余错误一律 500，且只返回 fallback，避免把数据库细节暴露给调用方。
+func FailFrom(c *gin.Context, err error, fallback string) {
+	var appErr *apperrors.AppError
+	if errors.As(err, &appErr) && appErr.Code > 0 {
+		Fail(c, appErr.Code, appErr.Message)
+		return
+	}
+	Fail(c, http.StatusInternalServerError, fallback)
 }
