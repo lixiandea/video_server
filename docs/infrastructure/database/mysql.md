@@ -45,10 +45,10 @@ networks:
 创建 `.env` 文件：
 
 ```bash
-MYSQL_ROOT_PASSWORD=Cz05180921.
+MYSQL_ROOT_PASSWORD=<your-mysql-password>
 MYSQL_DATABASE=video_server
 MYSQL_USER=video_user
-MYSQL_PASSWORD=video_password
+MYSQL_PASSWORD=<your-db-password>
 ```
 
 #### 启动服务
@@ -177,7 +177,7 @@ database:
   host: "localhost"  # Docker环境下使用 "mysql"
   port: 3306
   user: "video_user"
-  password: "video_password"
+  password: ""  # 由 DB_PASSWORD 环境变量注入
   name: "video_server"
   charset: "utf8mb4"
 ```
@@ -189,7 +189,7 @@ database:
 user:password@tcp(host:port)/database?charset=utf8mb4&parseTime=True&loc=Local
 
 # 示例
-video_user:video_password@tcp(localhost:3306)/video_server?charset=utf8mb4&parseTime=True&loc=Local
+video_user:<your-db-password>@tcp(localhost:3306)/video_server?charset=utf8mb4&parseTime=True&loc=Local
 ```
 
 ## 性能优化
@@ -287,7 +287,7 @@ echo "Backup completed: $BACKUP_FILE"
 docker-compose exec mysql mysqladmin ping -h localhost
 
 # 检查数据库连接
-mysql -u video_user -pvideo_password -e "SELECT 1;"
+mysql -u video_user -p"$DB_PASSWORD" -e "SELECT 1;"
 ```
 
 ### 2. 性能监控

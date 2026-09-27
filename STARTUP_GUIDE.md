@@ -294,7 +294,7 @@ chmod +x test-api.sh
 
 ```bash
 # 连接 MySQL
-docker-compose exec mysql mysql -u video_user -pvideo_password video_server
+docker-compose exec mysql mysql -u video_user -p"$DB_PASSWORD" video_server
 
 # 查看表
 SHOW TABLES;
@@ -484,8 +484,8 @@ DB_PORT=3307
 DB_USER=admin
 DB_PASSWORD=secure_password
 
-# JWT 密钥（生产环境必须修改）
-JWT_SECRET=your-super-secret-key-change-in-production
+# JWT 签名密钥：至少 32 个字符，缺失时 API 服务拒绝启动
+JWT_SECRET="$(openssl rand -hex 32)"
 ```
 
 ### 生产环境部署

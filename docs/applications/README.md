@@ -143,7 +143,7 @@ database:
   host: "mysql"
   port: 3306
   user: "video_user"
-  password: "video_password"
+  password: ""  # 由 DB_PASSWORD 环境变量注入
   name: "video_server"
   charset: "utf8mb4"
 
@@ -176,7 +176,7 @@ export SERVER_MODE=release
 export DB_HOST=mysql
 export DB_PORT=3306
 export DB_USER=video_user
-export DB_PASSWORD=video_password
+export DB_PASSWORD="<your-db-password>"
 export DB_NAME=video_server
 
 # Redis配置
@@ -188,7 +188,7 @@ export VIDEO_STORAGE_PATH=./storage/videos/
 export TEMP_STORAGE_PATH=./storage/temp/
 
 # JWT配置
-export JWT_SECRET=your-secret-key
+export JWT_SECRET="$(openssl rand -hex 32)"
 export JWT_EXPIRE_HOURS=24
 ```
 

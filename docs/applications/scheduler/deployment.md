@@ -81,7 +81,7 @@ services:
       - DB_HOST=mysql
       - DB_PORT=3306
       - DB_USER=video_user
-      - DB_PASSWORD=video_password
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - DB_NAME=video_server
       - LOG_LEVEL=info
     depends_on:
@@ -114,7 +114,7 @@ database:
   host: "localhost"
   port: 3306
   user: "video_user"
-  password: "video_password"
+  password: ""  # 由 DB_PASSWORD 环境变量注入
   name: "video_server"
   charset: "utf8mb4"
   max_idle_conns: 5

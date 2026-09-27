@@ -225,7 +225,7 @@ database:
   host: "localhost"         # 数据库主机
   port: 3306                # 数据库端口
   user: "root"              # 数据库用户名
-  password: "Cz05180921."   # 数据库密码
+  password: ""   # 由 DB_PASSWORD 环境变量注入，禁止写入明文密码
   name: "video_server"      # 数据库名称
   charset: "utf8mb4"        # 字符集
 

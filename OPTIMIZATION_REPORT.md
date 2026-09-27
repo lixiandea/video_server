@@ -23,18 +23,23 @@
 ### 1. 安全性优化 ✅
 
 #### 1.1 JWT 密钥环境变量化
-**优化前**: JWT 密钥硬编码在代码中
+**优化前**: JWT 密钥硬编码在代码中，并内置可预测的默认值
 ```go
-var jwtSecret = []byte("your-secret-key-change-in-production")
+var jwtSecret = []byte("<hardcoded-default-key>")
 ```
 
-**优化后**: 从环境变量读取
+**优化后**: 启动时从 `JWT_SECRET` 读取并校验，缺失或过短直接拒绝启动
 ```go
-func getJWTSecret() string {
-    if secret := os.Getenv("JWT_SECRET"); secret != "" {
-        return secret
+func InitJWT(secret string) error {
+    secret = strings.TrimSpace(secret)
+    if secret == "" {
+        return errors.New("JWT_SECRET is required but not set")
     }
-    return "your-secret-key-change-in-production"
+    if len(secret) < 32 {
+        return fmt.Errorf("JWT_SECRET must be at least 32 characters, got %d", len(secret))
+    }
+    jwtSecret = []byte(secret)
+    return nil
 }
 ```
 

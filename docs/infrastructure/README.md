@@ -85,7 +85,7 @@ docker-compose logs -f mysql
 MYSQL_ROOT_PASSWORD=your_root_password
 MYSQL_DATABASE=video_server
 MYSQL_USER=video_user
-MYSQL_PASSWORD=video_password
+MYSQL_PASSWORD=<your-db-password>
 
 # Redis配置
 REDIS_PASSWORD=your_redis_password
