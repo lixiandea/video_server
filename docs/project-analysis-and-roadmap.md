@@ -762,6 +762,32 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 
 **遗留**：`docs/infrastructure/` 下仍有与当前编排不完全一致的描述（如 Jaeger 未部署、`docker-compose.monitoring.yml` 不存在），本轮只统一了命令写法；深入重写建议随阶段四的可观测性工作推进。
 
+### 5.28 P2-4 测试与 CI 门禁（2026-10-01）
+
+**改动**
+
+| 范围 | 内容 |
+| --- | --- |
+| `.github/workflows/test.yml` | 重构为 4 个作业：`backend`（gofmt 检查、go.mod/go.sum 整洁性、build/vet/test）、`api`（MySQL+Redis 服务 + 启动 api-server + `./test-api.sh`）、`frontend`（`npm ci` + `npm run lint` + `vitest`）、`e2e`（MySQL+Redis + api-server + Playwright/Chromium，失败上传报告） |
+| `testdata/sample.mp4`（新增） | 7.7 KB 合法 MP4 测试固件（ffmpeg 生成），`test-api.sh` 优先使用它，不再依赖 w3schools 外链下载 |
+| `test-api.sh` | 上传用例支持 `TEST_VIDEO_SRC` 覆盖，并按「固件 → 下载」顺序取测试视频 |
+| `frontend-new/src/tests/e2e/home.spec.js` | 修正 `a[href="/"]` 的 strict mode 冲突（同时匹配品牌名与「首页」），改为限定 `.nav-link[href="/"]` |
+| `frontend-new/playwright.config.js` | 支持 `E2E_BASE_URL` 直接复用外部实例，`E2E_FRONTEND_PORT`/`VITE_PORT` 覆盖端口；CI 下使用 `github` 报告器 |
+| `frontend-new/vite.config.js` | 开发端口支持 `VITE_PORT` 覆盖（Windows/WSL2 保留 3000 附近的端口段） |
+
+**验收结果**
+
+| 场景 | 结果 |
+| --- | --- |
+| Playwright e2e（Chromium） | ✅ **19/19**（此前 18/19，既有断言已修复） |
+| `test-api.sh` 使用仓库固件 | ✅ 13/13（日志显示 `Using bundled fixture`，未触发下载） |
+| `npm run lint` | ✅ 0 problem |
+| `cd frontend-new && npx vitest run` | ✅ 3 文件 / 22 用例 |
+| 工作流 YAML 解析 | ✅ 4 个作业结构正确，secrets 通过作业级 env 注入 |
+| gofmt 门禁命令 | ✅ `gofmt -l ./cmd ./internal ./pkg` 输出为空 |
+
+**遗留**：CI 尚未在真实 GitHub Runner 上跑过一次（本地无 GitHub/网络权限）；`e2e` 作业依赖 `vite` 开发服务器在 `:3000` 启动，与本地 Windows 保留端口冲突无关（Runner 为 Linux）。
+
 ## 6. 实施约定
 
 - 一次只推进一个任务，独立提交，保持可回滚。
@@ -795,7 +821,7 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 - [x] P2-1 删除 `cmd/worker` 空壳（嵌套 module 消除，根模块覆盖全部服务，`./build.sh` 恢复可用，监控目标全部 up）
 - [x] P2-2 前端收敛与产物出库（仅保留 `frontend-new/`；`dist/` 早已出库）
 - [x] P2-3 限流器淘汰与可观测性加固（空闲 10 分钟的条目被回收并上报 `rate_limiter_entries`；`/metrics` 支持令牌或内网限制）
-- [ ] P2-4 测试与 CI 门禁
+- [x] P2-4 测试与 CI 门禁（CI 拆为 backend/api/frontend/e2e 四个作业，覆盖 gofmt、go vet/test、lint、vitest 与 Playwright；e2e 全绿 19/19）
 - [ ] P2-5 版本化数据库迁移
 - [x] P2-6 脚本收敛与文档修正（新增 Makefile 统一入口，删除 4 个重复脚本与过期报告，17 处失效绝对路径与 v1 命令全部修正）
 - [x] P2-7 修复前端 lint 配置（补齐 `.eslintrc.cjs` 并清理死代码，`npm run lint` 通过；CI 接入随 P2-4）

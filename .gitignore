@@ -1,6 +1,8 @@
 *.exe
 .idea*
 *.mp4
+# 测试固件例外：testdata/sample.mp4 是 test-api.sh 与 CI 使用的小体积合法 MP4
+!testdata/sample.mp4
 .vscode*
 .vscode
 # Binary files

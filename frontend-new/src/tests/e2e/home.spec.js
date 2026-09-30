@@ -12,8 +12,9 @@ test.describe('首页', () => {
     await page.goto('/')
     
     await expect(page.locator('.navbar-brand')).toContainText('视频服务器')
-    await expect(page.locator('a[href="/"]')).toBeVisible()
-    await expect(page.locator('a[href="/videos"]')).toBeVisible()
+    // 导航栏里指向首页的有「品牌名」和「首页」两个链接，断言需限定到导航项
+    await expect(page.locator('.nav-link[href="/"]')).toBeVisible()
+    await expect(page.locator('.nav-link[href="/videos"]')).toBeVisible()
   })
 
   test('应该显示特性卡片', async ({ page }) => {

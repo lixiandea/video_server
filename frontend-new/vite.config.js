@@ -19,7 +19,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: 3000,
+      // 本地可用 VITE_PORT 覆盖（Windows/WSL2 会保留 3000 附近的端口段）
+      port: Number(env.VITE_PORT) || 3000,
       host: true,
       proxy: {
         '/api': {

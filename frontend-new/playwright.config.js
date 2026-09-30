@@ -1,16 +1,23 @@
 // @ts-check
 import { defineConfig, devices } from '@playwright/test'
 
+// 前端地址优先取 E2E_BASE_URL（可直接指向已在运行的实例，例如容器里的 :8000）；
+// 否则由 Playwright 拉起 Vite 开发服务器，端口可用 E2E_FRONTEND_PORT / VITE_PORT 覆盖。
+const frontendPort = process.env.E2E_FRONTEND_PORT || process.env.VITE_PORT || '3000'
+const baseURL = process.env.E2E_BASE_URL || `http://localhost:${frontendPort}`
+
 export default defineConfig({
   testDir: './src/tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: [['html', { open: 'never' }], ['list']],
+  reporter: process.env.CI
+    ? [['github'], ['list']]
+    : [['html', { open: 'never' }], ['list']],
   
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -39,10 +46,13 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
+  // 直接复用外部实例时不需要自建 webServer
+  webServer: process.env.E2E_BASE_URL
+    ? undefined
+    : {
+        command: `npm run dev -- --port ${frontendPort} --strictPort`,
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120000,
+      },
 })

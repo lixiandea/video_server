@@ -6,15 +6,53 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+# CI 专用的一次性口令；作业级 env 里可用仓库 Secret 覆盖（见 api / e2e 作业）
+env:
+  CI_DB_PASSWORD: ci-only-throwaway
+  CI_JWT_SECRET: ci-only-jwt-secret-at-least-32-characters
+
 jobs:
-  test:
+  backend:
+    name: Go 格式 / 静态检查 / 单元测试
     runs-on: ubuntu-latest
-    
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        cache: true
+
+    - name: gofmt 检查
+      run: |
+        unformatted=$(gofmt -l ./cmd ./internal ./pkg)
+        if [ -n "$unformatted" ]; then
+          echo "::error::以下文件未通过 gofmt，请执行 make fmt"
+          echo "$unformatted"
+          exit 1
+        fi
+
+    - name: 校验 go.mod / go.sum 已整理
+      run: |
+        go mod tidy
+        git diff --exit-code go.mod go.sum
+
+    - name: go build / go vet / go test
+      run: |
+        go build ./...
+        go vet ./...
+        go test ./...
+
+  api:
+    name: API 集成测试
+    runs-on: ubuntu-latest
+    env:
+      CI_DB_PASSWORD: ${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'ci-only-throwaway' }}
+      CI_JWT_SECRET: ${{ secrets.CI_JWT_SECRET || 'ci-only-jwt-secret-at-least-32-characters' }}
     services:
       mysql:
         image: mysql:8.0
         env:
-          # CI-only throwaway password; set CI_MYSQL_ROOT_PASSWORD to override it.
           MYSQL_ROOT_PASSWORD: ${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'ci-only-throwaway' }}
           MYSQL_DATABASE: video_server_test
         options: >-
@@ -24,127 +62,139 @@ jobs:
           --health-retries 5
         ports:
           - 3306:3306
-      
       redis:
         image: redis:alpine
         ports:
           - 6379:6379
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
+    - uses: actions/setup-go@v5
       with:
         go-version: '1.21'
         cache: true
 
-    - name: Install dependencies
-      run: go mod tidy
-
-    - name: Initialize database
+    - name: 初始化数据库
       run: |
-        mysql -h 127.0.0.1 -P 3306 -u root -p"${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'ci-only-throwaway' }}" video_server_test < docker/mysql/init.sql
+        mysql -h 127.0.0.1 -P 3306 -u root -p"$CI_DB_PASSWORD" video_server_test < docker/mysql/init.sql
 
-    - name: Build services
+    - name: 构建服务
       run: ./build.sh
 
-    - name: Run API server in background
+    - name: 运行 API 集成测试
       run: |
         DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=root \
-          DB_PASSWORD="${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'ci-only-throwaway' }}" \
-          DB_NAME=video_server_test \
-          JWT_SECRET="${{ secrets.CI_JWT_SECRET || 'ci-only-jwt-secret-at-least-32-characters' }}" \
-          ./bin/api-server &
-        sleep 5
+          DB_PASSWORD="$CI_DB_PASSWORD" DB_NAME=video_server_test \
+          JWT_SECRET="$CI_JWT_SECRET" \
+          ./bin/api-server > /tmp/api-server.log 2>&1 &
 
-    - name: Run comprehensive API tests
-      run: |
-        # Wait for server to be ready
-        curl -f http://localhost:8080/health || exit 1
-        
-        echo "=== Starting Comprehensive API Tests ==="
-        
-        # 1. Health check test
-        echo "1. Testing health check..."
-        curl -X GET http://localhost:8080/health | jq .
-        
-        # 2. User registration test
-        echo "2. Testing user registration..."
-        REGISTER_RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/users/register \
-          -H "Content-Type: application/json" \
-          -d '{"username": "testuser_github", "password": "TestPass123"}')
-        echo $REGISTER_RESPONSE | jq .
-        
-        # Extract token and user info
-        TOKEN=$(echo $REGISTER_RESPONSE | jq -r '.token')
-        USER_ID=$(echo $REGISTER_RESPONSE | jq -r '.user_id')
-        
-        # 3. User login test
-        echo "3. Testing user login..."
-        LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/users/login \
-          -H "Content-Type: application/json" \
-          -d '{"username": "testuser_github", "password": "TestPass123"}')
-        echo $LOGIN_RESPONSE | jq .
-        
-        # Update token
-        TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.token')
-        
-        # 4. Get user profile test
-        echo "4. Testing get user profile..."
-        curl -X GET http://localhost:8080/api/v1/users/profile \
-          -H "Authorization: Bearer $TOKEN" | jq .
-        
-        # 5. Video upload test
-        echo "5. Testing video upload..."
-        echo "Test video content for GitHub Actions" > test_video.txt
-        UPLOAD_RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/videos/upload \
-          -H "Authorization: Bearer $TOKEN" \
-          -F "file=@test_video.txt" \
-          -F "name=Test Video from GitHub Actions")
-        echo $UPLOAD_RESPONSE | jq .
-        
-        # Extract video ID
-        VIDEO_ID=$(echo $UPLOAD_RESPONSE | jq -r '.video_id')
-        
-        # 6. Get user videos test
-        echo "6. Testing get user videos..."
-        curl -X GET http://localhost:8080/api/v1/users/videos \
-          -H "Authorization: Bearer $TOKEN" | jq .
-        
-        # 7. Get video info test
-        echo "7. Testing get video info..."
-        curl -X GET http://localhost:8080/api/v1/videos/$VIDEO_ID \
-          -H "Authorization: Bearer $TOKEN" | jq .
-        
-        # 8. Add comment test
-        echo "8. Testing add comment..."
-        COMMENT_RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/videos/$VIDEO_ID/comments \
-          -H "Authorization: Bearer $TOKEN" \
-          -H "Content-Type: application/json" \
-          -d '{"content": "This is a test comment from GitHub Actions workflow!"}')
-        echo $COMMENT_RESPONSE | jq .
-        
-        # Extract comment ID
-        COMMENT_ID=$(echo $COMMENT_RESPONSE | jq -r '.comment_id')
-        
-        # 9. Get comments test
-        echo "9. Testing get comments..."
-        curl -X GET http://localhost:8080/api/v1/videos/$VIDEO_ID/comments \
-          -H "Authorization: Bearer $TOKEN" | jq .
-        
-        # 10. Get single comment test
-        echo "10. Testing get single comment..."
-        curl -X GET http://localhost:8080/api/v1/comments/$COMMENT_ID \
-          -H "Authorization: Bearer $TOKEN" | jq .
-        
-        echo "=== All tests completed successfully! ==="
+        for i in $(seq 1 30); do
+          curl -fs http://localhost:8080/health > /dev/null && break
+          sleep 1
+        done
+        curl -fs http://localhost:8080/health || { echo "API server 未就绪"; cat /tmp/api-server.log; exit 1; }
 
-    - name: Test cleanup
+        # test-api.sh 使用仓库内的 testdata/sample.mp4 固件，不依赖外网下载
+        ./test-api.sh
+
+    - name: 失败时输出服务日志
+      if: failure()
+      run: cat /tmp/api-server.log || true
+
+    - name: 清理
       if: always()
       run: |
-        # Kill the API server
         pkill api-server || true
-        # Clean up test files
-        rm -f test_video.txt
+        rm -f /tmp/video_test/test_video.mp4
+
+  frontend:
+    name: 前端 lint / 单元测试
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-new
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: npm
+        cache-dependency-path: frontend-new/package-lock.json
+
+    - run: npm ci
+    - run: npm run lint
+    - run: npx vitest run
+
+  e2e:
+    name: 前端 e2e（Playwright / Chromium）
+    runs-on: ubuntu-latest
+    env:
+      CI_DB_PASSWORD: ${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'ci-only-throwaway' }}
+      CI_JWT_SECRET: ${{ secrets.CI_JWT_SECRET || 'ci-only-jwt-secret-at-least-32-characters' }}
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'ci-only-throwaway' }}
+          MYSQL_DATABASE: video_server_test
+        options: >-
+          --health-cmd "mysqladmin ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 3306:3306
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        cache: true
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: npm
+        cache-dependency-path: frontend-new/package-lock.json
+
+    - name: 初始化数据库并构建服务
+      run: |
+        mysql -h 127.0.0.1 -P 3306 -u root -p"$CI_DB_PASSWORD" video_server_test < docker/mysql/init.sql
+        ./build.sh
+
+    - name: 后台启动 API server
+      run: |
+        DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=root \
+          DB_PASSWORD="$CI_DB_PASSWORD" DB_NAME=video_server_test \
+          JWT_SECRET="$CI_JWT_SECRET" \
+          ./bin/api-server > /tmp/api-server.log 2>&1 &
+
+        for i in $(seq 1 30); do
+          curl -fs http://localhost:8080/health > /dev/null && break
+          sleep 1
+        done
+        curl -fs http://localhost:8080/health || { echo "API server 未就绪"; cat /tmp/api-server.log; exit 1; }
+
+    - name: 安装前端依赖与 Chromium
+      working-directory: frontend-new
+      run: |
+        npm ci
+        npx playwright install --with-deps chromium
+
+    - name: 运行 e2e（Playwright 会自行拉起 vite 开发服务器）
+      working-directory: frontend-new
+      run: npx playwright test --project=chromium
+
+    - name: 失败时上传报告
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report
+        path: frontend-new/playwright-report
+        retention-days: 7

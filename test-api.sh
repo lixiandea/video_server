@@ -87,16 +87,23 @@ function get_profile() {
 function upload_video() {
     local token=$(jq -r '.token' /tmp/login_response.json)
     
-    # Check if test video exists
-    if [ ! -f /tmp/video_test/test_video.mp4 ]; then
-        echo -e "${YELLOW}⚠️  Test video not found, downloading...${NC}"
-        mkdir -p /tmp/video_test
-        curl -sL -o /tmp/video_test/test_video.mp4 "https://www.w3schools.com/html/mov_bbb.mp4"
+    # 测试视频：优先用仓库内的极小固件（避免 CI 依赖外网），其次下载兜底
+    local test_video="${TEST_VIDEO_SRC:-/tmp/video_test/test_video.mp4}"
+    local fixture="$(dirname "$0")/testdata/sample.mp4"
+    if [ ! -f "$test_video" ]; then
+        mkdir -p "$(dirname "$test_video")"
+        if [ -f "$fixture" ]; then
+            echo -e "${CYAN}📼 Using bundled fixture: testdata/sample.mp4${NC}"
+            cp "$fixture" "$test_video"
+        else
+            echo -e "${YELLOW}⚠️  Test video not found, downloading...${NC}"
+            curl -sL -o "$test_video" "https://www.w3schools.com/html/mov_bbb.mp4"
+        fi
     fi
     
     local response=$(curl -s -X POST "http://localhost:8080/api/v1/videos/upload" \
         -H "Authorization: Bearer $token" \
-        -F "file=@/tmp/video_test/test_video.mp4" \
+        -F "file=@$test_video" \
         -F "name=Big Buck Bunny - Test Video")
     echo "$response" | jq .
     echo "$response" > /tmp/upload_response.json
