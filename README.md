@@ -32,7 +32,7 @@
 
 - **API 网关层** ([`/cmd/api-server`](/Users/lixiande/project/video_server/cmd/api-server)) - 主要入口点，处理用户请求
 - **调度服务** ([`/cmd/scheduler`](/Users/lixiande/project/video_server/cmd/scheduler)) - 后台任务处理器
-- **工作服务** ([`/cmd/worker`](/Users/lixiande/project/video_server/cmd/worker)) - 通用后台处理
+- **转码服务** ([`cmd/transcode-worker`](cmd/transcode-worker)) - 消费 Redis 转码队列，执行 ffmpeg 转码并回写产物
 - **核心服务层** ([`/internal/services`](/Users/lixiande/project/video_server/internal/services)) - 业务逻辑实现
 - **数据模型层** ([`/internal/models`](/Users/lixiande/project/video_server/internal/models)) - 使用 GORM 的 ORM 模型
 - **存储层** ([`/pkg/storage`](/Users/lixiande/project/video_server/pkg/storage)) - 文件存储抽象
@@ -90,7 +90,7 @@ video_server/
 ├── cmd/                        # 应用主包
 │   ├── api-server/             # 主 API 服务
 │   ├── scheduler/              # 任务调度服务
-│   └── worker/                 # 后台工作服务
+│   └── transcode-worker/       # 转码工作服务
 ├── docker/                     # Docker 配置
 │   └── mysql/                  # MySQL 初始化脚本
 ├── frontend/                   # 传统前端测试界面

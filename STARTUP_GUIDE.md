@@ -122,7 +122,7 @@ video_server_redis        Up 30 seconds  0.0.0.0:6379->6379/tcp
 video_server_prometheus   Up 30 seconds  0.0.0.0:9090->9090/tcp
 video_server_grafana      Up 30 seconds  0.0.0.0:3001->3000/tcp
 video_server_scheduler    Up 30 seconds  0.0.0.0:8089->8089/tcp
-video_server_worker       Up 30 seconds
+video_server_transcode_worker  Up 30 seconds
 ```
 
 ### 访问服务
@@ -240,10 +240,11 @@ cd cmd/scheduler
 go run main.go
 ```
 
-### 启动 Worker
+### 启动 Transcode Worker
 
 ```bash
-cd cmd/worker
+# 需要先启动 MySQL 与 Redis
+cd cmd/transcode-worker
 go run main.go
 ```
 

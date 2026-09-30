@@ -17,21 +17,21 @@ echo "Starting scheduler..."
 ./bin/scheduler &
 SCHEDULER_PID=$!
 
-# Start worker in background
-echo "Starting worker..."
-./bin/worker &
-WORKER_PID=$!
+# Start transcode worker in background
+echo "Starting transcode worker..."
+./bin/transcode-worker &
+TRANSCODE_WORKER_PID=$!
 
 echo "Services started successfully!"
 echo "API Server PID: $API_PID"
 echo "Scheduler PID: $SCHEDULER_PID" 
-echo "Worker PID: $WORKER_PID"
+echo "Transcode Worker PID: $TRANSCODE_WORKER_PID"
 
 # Function to stop services
 stop_services() {
     echo "Stopping services..."
-    kill $API_PID $SCHEDULER_PID $WORKER_PID
-    wait $API_PID $SCHEDULER_PID $WORKER_PID
+    kill $API_PID $SCHEDULER_PID $TRANSCODE_WORKER_PID
+    wait $API_PID $SCHEDULER_PID $TRANSCODE_WORKER_PID
     echo "Services stopped."
 }
 

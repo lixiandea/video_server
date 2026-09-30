@@ -13,9 +13,6 @@ applications/
 ├── scheduler/         # 任务调度服务
 │   ├── deployment.md # 部署指南
 │   └── jobs.md       # 任务配置
-├── worker/            # 后台工作服务
-│   ├── deployment.md # 部署指南
-│   └── processing.md # 处理逻辑
 ├── frontend/          # 前端服务
 │   ├── deployment.md # 部署指南
 │   └── nginx.md      # Nginx配置
@@ -36,10 +33,10 @@ applications/
 - **技术栈**: Go
 - **依赖**: MySQL
 
-### 3. Worker (worker)
+### 3. Transcode Worker (transcode-worker)
 - **端口**: 无(后台服务)
-- **职责**: 处理异步任务和队列作业
-- **技术栈**: Go
+- **职责**: 消费 Redis 转码队列，执行 ffmpeg 转码并把产物路径回写数据库
+- **技术栈**: Go + ffmpeg
 - **依赖**: MySQL, Redis
 
 ### 4. Frontend (frontend)
@@ -55,7 +52,7 @@ applications/
                     ↓
               Scheduler (单实例)
                     ↓
-              Worker (多实例)
+              Transcode Worker (多实例)
                     ↓
               Frontend (多实例)
 ```
@@ -80,7 +77,7 @@ cd /path/to/video_server
 docker-compose build
 
 # 启动所有应用服务
-docker-compose up -d api-server scheduler worker frontend
+docker-compose up -d api-server scheduler transcode-worker frontend
 
 # 查看服务状态
 docker-compose ps
@@ -115,16 +112,16 @@ cd ../..
 ./bin/scheduler
 ```
 
-#### Worker
+#### Transcode Worker
 
 ```bash
 # 构建
-cd cmd/worker
-go build -o ../../bin/worker .
+cd cmd/transcode-worker
+go build -o ../../bin/transcode-worker .
 
-# 运行
+# 运行（需要 MySQL 与 Redis）
 cd ../..
-./bin/worker
+./bin/transcode-worker
 ```
 
 ## 环境配置

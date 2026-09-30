@@ -7,7 +7,7 @@ echo "Cleaning up video server..."
 # Stop any running processes
 pkill -f api-server 2>/dev/null
 pkill -f scheduler 2>/dev/null
-pkill -f worker 2>/dev/null
+pkill -f transcode-worker 2>/dev/null
 
 # Remove binaries
 rm -f bin/*

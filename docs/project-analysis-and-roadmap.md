@@ -665,6 +665,41 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 
 **遗留**：`X-Forwarded-For` 不被信任（判定用 TCP 源地址），因此若未来在反向代理后启用 `METRICS_TOKEN` 更稳妥；Prometheus 中 `video-scheduler`（404）与 `video-worker`（连接被拒）两个抓取目标本就无 `/metrics`，属既有问题，随 P2-1 处理 worker 时一并收敛。
 
+### 5.25 P2-1 删除 `cmd/worker` 空壳（2026-09-30）
+
+**决策依据**：`cmd/worker` 只有 `/health` 与 30 秒一次的日志循环，无业务逻辑；
+真正的后台作业由 `transcode-worker` 承担。其独立 `go.mod`（`go 1.23.0`）导致
+根模块 `go build ./...` / `go vet ./...` 覆盖不到，`./build.sh` 在本地因工具链
+缺失而失败，该空壳却进入生产编排。故选择**删除**而非合并。
+
+**改动**
+
+| 文件 | 改动 |
+| --- | --- |
+| `cmd/worker/`、`Dockerfile.worker`、`docs/applications/worker/` | 删除 |
+| `build.sh` | worker 步骤替换为 transcode-worker（三个二进制均来自根模块） |
+| `docker-compose.yml` | 移除 `worker` 服务；为 `scheduler` 补 `METRICS_TOKEN` |
+| `deploy/monitoring/prometheus.yml` | 移除 `video-worker` 抓取任务 |
+| `cmd/scheduler/main.go` | 注册 `/metrics`，修复该目标长期 404 |
+| `start.sh`、`scripts/start-app-services.sh`、`scripts/stop-app-services.sh`、`cleanup.sh` | worker 引用改为 transcode-worker |
+| `README.md`、`docs/applications/README.md`、`STARTUP_GUIDE.md` | 同步服务清单与目录树 |
+
+**验收结果**
+
+| 场景 | 结果 |
+| --- | --- |
+| 全仓嵌套 module | ✅ 仅剩根 `go.mod` |
+| `go list ./cmd/...` | ✅ api-server / scheduler / transcode-worker |
+| `./build.sh` | ✅ 通过（此前在 worker 步骤失败） |
+| `docker compose config -q` | ✅ 通过 |
+| `docker compose ps` | ✅ 8 个服务，孤儿容器已移除 |
+| Prometheus 三个抓取目标 | ✅ 全部 `up` |
+| `test-api.sh` 回归 | ✅ 13/13 |
+| `go build ./...` / `go vet ./...` | ✅ 通过 |
+
+**遗留**：历史记录类文档（`OPTIMIZATION_REPORT.md`、`STARTUP_GUIDE.md` 的服务
+清单快照、`README.md` 中的失效绝对路径）留待 P2-6 统一修正。
+
 ## 6. 实施约定
 
 - 一次只推进一个任务，独立提交，保持可回滚。
@@ -695,7 +730,7 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 - [x] P1-9 串行化启动迁移（MySQL `GET_LOCK`）
 - [x] P1-10 队列统计容错（`NOGROUP` → pending=0）
 - [x] P1-11 扩展视频/用户字段（分三批完成：P1-11a 用户 email/bio、P1-11b 视频封面/播放量/时长/简介、P1-11c 点赞关系与计数）
-- [ ] P2-1 合并 cmd/worker
+- [x] P2-1 删除 `cmd/worker` 空壳（嵌套 module 消除，根模块覆盖全部服务，`./build.sh` 恢复可用，监控目标全部 up）
 - [ ] P2-2 前端收敛与产物出库
 - [x] P2-3 限流器淘汰与可观测性加固（空闲 10 分钟的条目被回收并上报 `rate_limiter_entries`；`/metrics` 支持令牌或内网限制）
 - [ ] P2-4 测试与 CI 门禁

@@ -9,6 +9,7 @@ import (
 	"github.com/lixiandea/video_server/internal/config"
 	"github.com/lixiandea/video_server/internal/services"
 	"github.com/lixiandea/video_server/pkg/database"
+	"github.com/lixiandea/video_server/pkg/metrics"
 	"github.com/lixiandea/video_server/pkg/storage"
 	"github.com/spf13/viper"
 )
@@ -46,6 +47,9 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "OK", "service": "scheduler"})
 	})
+
+	// /metrics：与 api-server 使用同一套保护策略（令牌或仅内网）
+	metrics.RegisterMetricsEndpoint(r, cfg.Server.MetricsToken)
 
 	r.POST("/cleanup", func(c *gin.Context) {
 		performCleanup(videoService, storageService)

@@ -21,11 +21,11 @@ fi
 
 # 构建应用服务镜像
 echo "🔨 构建应用服务镜像..."
-docker-compose build api-server scheduler worker frontend
+docker-compose build api-server scheduler transcode-worker frontend
 
 # 启动应用服务
 echo "🔧 启动应用服务..."
-docker-compose up -d api-server scheduler worker frontend
+docker-compose up -d api-server scheduler transcode-worker frontend
 
 # 等待服务启动
 echo "⏳ 等待服务启动..."

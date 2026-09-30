@@ -27,12 +27,12 @@ if [ $? -ne 0 ]; then
 fi
 cd ../..
 
-# Build worker
-echo "Building worker..."
-cd cmd/worker
-go build -o ../../bin/worker .
+# Build transcode worker
+echo "Building transcode worker..."
+cd cmd/transcode-worker
+go build -o ../../bin/transcode-worker .
 if [ $? -ne 0 ]; then
-    echo "Failed to build worker"
+    echo "Failed to build transcode worker"
     exit 1
 fi
 cd ../..

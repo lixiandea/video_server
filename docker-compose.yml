@@ -75,27 +75,11 @@ services:
       - DB_USER=video_user
       - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - DB_NAME=video_server
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
       - STORAGE_VIDEO_DIR=/app/storage/videos
       - STORAGE_TEMP_DIR=/app/storage/temp
     volumes:
       - ./storage:/app/storage
-    networks:
-      - video_network
-
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
-    container_name: video_server_worker
-    restart: always
-    depends_on:
-      - mysql
-    environment:
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_USER=video_user
-      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
-      - DB_NAME=video_server
     networks:
       - video_network
 
