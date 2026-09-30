@@ -1,24 +1,25 @@
 # 仓库贡献指南
 
 ## 项目结构与模块划分
-- `cmd/` — 各服务入口：`api-server`、`scheduler`、`worker`、`transcode-worker`。
+- `cmd/` — 各服务入口：`api-server`、`scheduler`、`transcode-worker`。
 - `internal/` — 应用代码：`handlers/`（Gin HTTP 层）、`services/`（业务逻辑）、`models/`（GORM 模型）、`middleware/`、`config/`、`utils/`。
 - `pkg/` — 可复用库：`auth`、`database`、`redis`、`storage`、`queue`、`metrics`、`tracing`、`logging`、`errors`、`validation`。
 - `api/` — 接口契约；`frontend-new/` — 唯一前端（Vue 3 + Vite），容器内由 Nginx 托管。
 - 前端测试位于 `frontend-new/src/tests/{unit,e2e}`。脚本测试套件：`test-api.sh`、`test-monitoring.sh`。配置见 `config.yaml`、`docker/`、`deploy/`，文档见 `docs/`。
 
 ## 构建、测试与开发命令
-- `./build.sh` — 将 `api-server`、`scheduler`、`worker` 编译到 `bin/`。
-- `go build ./...` — 编译全部 Go 包；提交前运行 `go vet ./...`。
+- `make help` — 列出全部可用任务，优先使用它而不是零散命令。
+- `./build.sh`（或 `make build`）— 构建 `api-server`、`scheduler`、`transcode-worker` 到 `bin/`。
+- `go build ./...` — 编译全部 Go 包；提交前运行 `go vet ./...` 与 `go test ./...`。
 - `go run ./cmd/api-server` — 本地启动 API（需 MySQL/Redis）。
-- `docker compose up -d` 或 `./start-docker.sh` — 启动完整服务栈。
-- `./test-api.sh` — 针对运行中服务的 curl 集成测试。
-- `cd frontend-new && npm install && npm run dev` — 在 `:3000` 启动开发服务。
+- `make up` / `make down` — 启动 / 停止 compose 服务栈。
+- `make test-api`（`./test-api.sh`）— 针对运行中服务的 curl 集成测试。
+- `cd frontend-new && npm install && npm run dev` — 在 `:3000` 启动开发服务（等价 `make frontend-dev`）。
 - `npm run build`、`npm run lint`、`npm test`（单元 + e2e）、`npm run test:unit`、`npm run test:e2e`。
 
 ## Docker 部署
 - 先复制 `.env.example` 为 `.env`；`docker-compose.yml` 使用 `${VAR:?}`，缺失密钥会直接中止。用 `docker compose config -q` 校验配置。
-- `docker compose up -d --build` 启动全部 9 个服务（mysql、redis、api-server、scheduler、worker、transcode-worker、frontend、prometheus、grafana）。前端 `:3000`、API `:8080`、Grafana `:3001`。
+- `make up`（`docker compose up -d`）启动全部 8 个服务（mysql、redis、api-server、scheduler、transcode-worker、frontend、prometheus、grafana）。前端 `:8000`（`FRONTEND_PORT`）、API `:8080`、Prometheus `:9090`、Grafana `:3301`（`GRAFANA_PORT`）。
 - 主机保留端口时可覆盖 `FRONTEND_PORT` / `GRAFANA_PORT`（Windows/WSL2 常见，如 2952-3051 段）。
 - `docker/mysql/init.sql` 只创建数据库与 `users` 表，其余表由服务启动时的 GORM `AutoMigrate` 创建，并用 MySQL `GET_LOCK` 命名锁串行化。除非同步修改 `internal/models`，否则不要在 `init.sql` 里加业务表 DDL。
 - Alpine 基础镜像使用国内 apk 镜像，`frontend-new` 使用 `registry.npmmirror.com`；构建因网络失败时先检查这两处。
@@ -31,7 +32,7 @@
 
 ## 测试规范
 - 前端单元测试：Vitest，位于 `src/tests/unit/*.test.js`；e2e：Playwright，位于 `src/tests/e2e/*.spec.js`。覆盖率：`npm run test:unit:coverage`。
-- 后端暂无 Go 单元测试；新增 `*_test.go` 文件并运行 `go test ./...`。CI（`.github/workflows/test.yml`）会构建服务并针对 MySQL/Redis 运行 API 脚本。
+- 后端单元测试与代码同目录（`internal/middleware/ratelimit_test.go`、`pkg/metrics/metrics_endpoint_test.go`），运行 `go test ./...`。CI（`.github/workflows/test.yml`）会构建服务并针对 MySQL/Redis 运行 API 脚本。
 - e2e 需要 API 监听 `:8080`、前端开发服务监听 `:3000`。
 
 ## 提交与 Pull Request 规范

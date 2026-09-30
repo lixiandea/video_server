@@ -125,7 +125,6 @@ frontend-new/
 
 ```bash
 # 使用 Node.js serve
-docker build -f Dockerfile.frontend.new -t video-frontend:latest .
 
 # 使用 Nginx（推荐）
 docker build -f Dockerfile.frontend.nginx -t video-frontend:nginx .
@@ -163,7 +162,7 @@ frontend:
 然后运行：
 
 ```bash
-docker-compose up -d frontend
+docker compose up -d frontend
 ```
 
 ## 视频播放器功能

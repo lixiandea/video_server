@@ -7,7 +7,7 @@ echo ""
 
 # 检查Docker Compose服务状态
 echo "Docker Compose服务状态:"
-docker-compose ps
+docker compose ps
 
 echo ""
 echo "=== 端口监听状态 ==="

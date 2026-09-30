@@ -50,13 +50,13 @@ infrastructure/
 cd /path/to/video_server
 
 # 启动基础设施服务
-docker-compose up -d mysql redis prometheus grafana jaeger
+docker compose up -d mysql redis prometheus grafana jaeger
 
 # 查看服务状态
-docker-compose ps
+docker compose ps
 
 # 查看日志
-docker-compose logs -f mysql
+docker compose logs -f mysql
 ```
 
 ### 独立部署各组件

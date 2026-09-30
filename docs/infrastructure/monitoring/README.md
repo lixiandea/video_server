@@ -36,7 +36,7 @@ Grafana ← 各种数据源 (数据可视化)
 ### Docker Compose 配置
 
 ```yaml
-# docker-compose.monitoring.yml
+# docker-compose.yml
 version: '3.8'
 
 services:
@@ -602,10 +602,10 @@ receivers:
 
 ```bash
 # 启动监控组件
-docker-compose -f docker-compose.monitoring.yml up -d
+docker compose -f docker-compose.yml up -d
 
 # 启动应用服务（包含监控集成）
-docker-compose up -d api-server scheduler worker
+docker compose up -d api-server scheduler transcode-worker
 ```
 
 ### 2. 访问监控界面
@@ -677,13 +677,13 @@ chunk_store_config:
    curl http://api-server:8080/metrics
    
    # 检查Prometheus抓取配置
-   docker-compose logs prometheus
+   docker compose logs prometheus
    ```
 
 2. **追踪数据缺失**
    ```bash
    # 检查Jaeger服务状态
-   docker-compose logs jaeger
+   docker compose logs jaeger
    
    # 验证追踪配置
    echo $JAEGER_ENDPOINT
@@ -692,7 +692,7 @@ chunk_store_config:
 3. **Grafana无法连接数据源**
    ```bash
    # 检查网络连接
-   docker-compose exec grafana ping prometheus
+   docker compose exec grafana ping prometheus
    
    # 检查数据源配置
    cat deploy/monitoring/grafana-datasources.yml

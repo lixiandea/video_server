@@ -30,18 +30,18 @@
 
 ### 架构概述
 
-- **API 网关层** ([`/cmd/api-server`](/Users/lixiande/project/video_server/cmd/api-server)) - 主要入口点，处理用户请求
-- **调度服务** ([`/cmd/scheduler`](/Users/lixiande/project/video_server/cmd/scheduler)) - 后台任务处理器
+- **API 网关层** ([`/cmd/api-server`](cmd/api-server)) - 主要入口点，处理用户请求
+- **调度服务** ([`/cmd/scheduler`](cmd/scheduler)) - 后台任务处理器
 - **转码服务** ([`cmd/transcode-worker`](cmd/transcode-worker)) - 消费 Redis 转码队列，执行 ffmpeg 转码并回写产物
-- **核心服务层** ([`/internal/services`](/Users/lixiande/project/video_server/internal/services)) - 业务逻辑实现
-- **数据模型层** ([`/internal/models`](/Users/lixiande/project/video_server/internal/models)) - 使用 GORM 的 ORM 模型
-- **存储层** ([`/pkg/storage`](/Users/lixiande/project/video_server/pkg/storage)) - 文件存储抽象
-- **认证模块** ([`/pkg/auth`](/Users/lixiande/project/video_server/pkg/auth)) - JWT 基础认证
-- **数据库层** ([`/pkg/database`](/Users/lixiande/project/video_server/pkg/database)) - 数据库连接和 ORM
-- **验证层** ([`/pkg/validation`](/Users/lixiande/project/video_server/pkg/validation)) - 输入验证工具
-- **处理器层** ([`/internal/handlers`](/Users/lixiande/project/video_server/internal/handlers)) - HTTP 请求处理器
-- **中间件层** ([`/internal/middleware`](/Users/lixiande/project/video_server/internal/middleware)) - 认证和其他中间件
-- **API 定义** ([`/api`](/Users/lixiande/project/video_server/api)) - API 合约定义
+- **核心服务层** ([`/internal/services`](internal/services)) - 业务逻辑实现
+- **数据模型层** ([`/internal/models`](internal/models)) - 使用 GORM 的 ORM 模型
+- **存储层** ([`/pkg/storage`](pkg/storage)) - 文件存储抽象
+- **认证模块** ([`/pkg/auth`](pkg/auth)) - JWT 基础认证
+- **数据库层** ([`/pkg/database`](pkg/database)) - 数据库连接和 ORM
+- **验证层** ([`/pkg/validation`](pkg/validation)) - 输入验证工具
+- **处理器层** ([`/internal/handlers`](internal/handlers)) - HTTP 请求处理器
+- **中间件层** ([`/internal/middleware`](internal/middleware)) - 认证和其他中间件
+- **API 定义** ([`/api`](api)) - API 合约定义
 
 ## 功能特性
 
@@ -117,12 +117,11 @@ video_server/
 ├── docker-compose.yml          # Docker Compose 配置
 ├── Dockerfile.*                # 各服务 Dockerfile
 ├── .env                        # 环境变量
-├── build.sh                    # 构建脚本
-├── start.sh                    # 启动后端服务脚本
-├── start-docker.sh             # 启动 Docker 环境脚本
-├── stop-docker.sh              # 停止 Docker 环境脚本
-├── check-docker.sh             # Docker 环境检查脚本
-├── cleanup.sh                  # 清理脚本
+├── Makefile                    # 统一命令入口（make help 查看全部目标）
+├── build.sh                    # 本地编译 Go 二进制
+├── test-api.sh                 # API 集成测试
+├── cleanup.sh                  # 清理本地进程与产物
+├── scripts/                    # 基础设施/应用启停与状态检查脚本
 ├── postman_collection.json     # Postman API 集合
 ├── postman_environment.json    # Postman 环境配置
 ├── go.mod                      # Go 模块定义
@@ -158,7 +157,7 @@ video_server/
    ```
 
 3. **配置数据库**
-   - 修改 [config.yaml](/Users/lixiande/project/video_server/config.yaml) 中的数据库连接信息
+   - 修改 [config.yaml](config.yaml) 中的数据库连接信息
    - 执行 MySQL 初始化脚本
 
 4. **构建服务**
@@ -169,35 +168,43 @@ video_server/
 
 5. **启动服务**
    ```bash
-   chmod +x start.sh
-   ./start.sh
+   make build        # 或 ./build.sh，产物在 bin/
+   ./start.sh        # 本地前台启动 api-server / scheduler / transcode-worker
    ```
 
 6. **访问服务**
    - API 服务: http://localhost:8080
-   - 前端测试界面: http://localhost:3000
+   - 前端（容器）: http://localhost:8000，本地开发服务器: http://localhost:3000
 
 ### Docker 方式部署
 
-1. **启动 Docker 环境**
-   ```bash
-   chmod +x start-docker.sh
-   ./start-docker.sh
-   ```
+```bash
+cp .env.example .env    # 填写数据库口令与 JWT_SECRET
+make up                 # 等价于 docker compose up -d --remove-orphans
+make ps                 # 查看状态
+```
 
-2. **验证环境**
-   ```bash
-   chmod +x check-docker.sh
-   ./check-docker.sh
-   ```
+- API 服务: http://localhost:8080
+- 前端: http://localhost:8000（`FRONTEND_PORT` 可覆盖）
+- Grafana: http://localhost:3301（`GRAFANA_PORT` 可覆盖）
 
-3. **访问服务**
-   - API 服务: http://localhost:8080
-   - 前端测试界面: http://localhost:3000
+### 统一命令入口
+
+`make help` 列出全部目标，常用命令：
+
+| 命令 | 说明 |
+| --- | --- |
+| `make up` / `make down` | 启动 / 停止完整服务栈 |
+| `make ps` / `make logs` | 查看状态 / 跟踪日志 |
+| `make build` | 本地编译 Go 二进制 |
+| `make test` | 后端 build+vet+test 与前端单元测试 |
+| `make test-api` | 对运行中的服务执行 `test-api.sh` |
+| `make lint` | 前端 ESLint |
+| `make fmt` | gofmt 全仓格式化 |
 
 ## 配置说明
 
-### 主配置文件 ([config.yaml](/Users/lixiande/project/video_server/config.yaml))
+### 主配置文件 ([config.yaml](config.yaml))
 
 ```yaml
 server:
@@ -306,12 +313,15 @@ storage:
 
 ```bash
 # 启动包含监控组件的完整环境
-docker-compose -f docker-compose.monitoring.yml up -d
+make up
+# 或只启动监控组件
+make monitoring-up
 
 # 访问监控界面
-# Grafana: http://localhost:3000 (admin/admin)
+# Grafana: http://localhost:3301（用户名 admin，密码见 .env 的 GRAFANA_ADMIN_PASSWORD）
 # Prometheus: http://localhost:9090
-# Jaeger: http://localhost:16686
+
+# 注：链路追踪代码位于 pkg/tracing，但编排中未部署 Jaeger
 ```
 
 ### 监控功能
@@ -336,20 +346,11 @@ docker-compose -f docker-compose.monitoring.yml up -d
 
 ### Docker 环境设置
 
-1. **检查 Docker 环境**
-   ```bash
-   ./check-docker.sh
-   ```
-
-2. **启动完整环境**
-   ```bash
-   ./start-docker.sh
-   ```
-
-3. **停止环境**
-   ```bash
-   ./stop-docker.sh
-   ```
+```bash
+./check-docker.sh   # 检查 Docker / Compose 是否可用
+make up             # 启动完整环境
+make down           # 停止环境（保留数据卷；加 -v 可用 docker compose down -v 清空）
+```
 
 ### Docker 服务组成
 
@@ -357,12 +358,12 @@ docker-compose -f docker-compose.monitoring.yml up -d
 - **Redis**: 端口 6379，用于缓存和会话存储
 - **API Server**: 端口 8080，主 API 服务
 - **Scheduler**: 后台任务调度器
-- **Worker**: 后台工作进程
+- **Transcode Worker**: 消费转码队列，执行 ffmpeg 转码并回写产物
 - **Frontend**: 端口 3000，前端测试界面
 
 ### 数据库初始化
 
-MySQL 会在启动时自动执行 [docker/mysql/init.sql](/Users/lixiande/project/video_server/docker/mysql/init.sql) 脚本，创建以下表：
+MySQL 会在启动时自动执行 [docker/mysql/init.sql](docker/mysql/init.sql) 脚本，创建以下表：
 
 - `users`: 用户表
 - `video_info`: 视频信息表
@@ -555,16 +556,18 @@ npm run dev            # http://localhost:3000
 - 数据库查询压力显著降低
 
 ### 相关文档
-- [优化报告](./OPTIMIZATION_REPORT.md) - 详细的优化分析和测试报告
+- [项目分析与优化路线图](docs/project-analysis-and-roadmap.md) - 缺陷清单、路线图与全部实施记录
+- [工作日结](docs/worklog/2026-09-27.md) - 按日的工作纪要、验证矩阵与后续方向
 - [启动指南](./STARTUP_GUIDE.md) - 完整的启动流程指南
+- [测试指南](./测试指南.md) - 测试流程与用例说明
 
 ## 常见问题
 
 ### Q: 无法连接数据库
-A: 检查 [config.yaml](/Users/lixiande/project/video_server/config.yaml) 中的数据库配置，确保 MySQL 服务正在运行
+A: 检查 [config.yaml](config.yaml) 中的数据库配置，确保 MySQL 服务正在运行
 
 ### Q: 上传大文件失败
-A: 检查 [config.yaml](/Users/lixiande/project/video_server/config.yaml) 中的 `max_file_size` 设置以及服务器磁盘空间
+A: 检查 [config.yaml](config.yaml) 中的 `max_file_size` 设置以及服务器磁盘空间
 
 ### Q: Docker 启动失败
 A: 确保 Docker 和 Docker Compose 已正确安装，检查端口是否被占用
@@ -578,4 +581,4 @@ A: 重新登录获取新的令牌，或调整配置中的令牌有效期
 
 ## 许可证
 
-本项目采用 MIT 许可证。详情请参阅 [LICENSE](/Users/lixiande/project/video_server/LICENSE) 文件。
+本项目采用 MIT 许可证。详情请参阅 LICENSE 文件。

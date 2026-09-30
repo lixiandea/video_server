@@ -103,13 +103,12 @@ npm run preview
 ```
 
 **启动脚本：**
-- `start-frontend-new.sh` - 快速启动开发服务器
+- `make frontend-dev` - 快速启动开发服务器
 
 ### 5. Docker 部署 ✅
 
 **Dockerfile 配置：**
 - `Dockerfile.frontend.nginx` - 使用 Nginx（推荐）
-- `Dockerfile.frontend.new` - 使用 Node.js serve
 
 **Docker Compose 集成：**
 已更新 `docker-compose.yml`，配置前端服务使用新的 Dockerfile 和 Nginx。
@@ -117,7 +116,7 @@ npm run preview
 **部署命令：**
 ```bash
 # 使用 Docker Compose
-docker-compose up -d frontend
+docker compose up -d frontend
 
 # 单独构建
 docker build -f Dockerfile.frontend.nginx -t video-frontend:nginx ./frontend-new
@@ -127,7 +126,7 @@ docker run -d -p 3000:80 --name video-frontend video-frontend:nginx
 ```
 
 **部署脚本：**
-- `deploy-frontend-docker.sh` - 一键部署到 Docker
+- `make images` - 一键构建镜像
 
 ### 6. 移动端和桌面端兼容性 ✅
 
@@ -223,7 +222,7 @@ npm test
 npm run build
 
 # 5. Docker 部署
-docker-compose up -d frontend
+docker compose up -d frontend
 ```
 
 ### 常用命令

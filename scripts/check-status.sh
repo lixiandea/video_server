@@ -21,7 +21,7 @@ fi
 
 echo ""
 echo "=== 服务状态 ==="
-docker-compose ps
+docker compose ps
 
 echo ""
 echo "=== 端口占用检查 ==="
@@ -41,8 +41,8 @@ echo ""
 echo "=== 健康检查 ==="
 
 # MySQL健康检查
-if docker-compose ps mysql | grep -q "Up"; then
-    if docker-compose exec -T mysql mysqladmin ping -h localhost > /dev/null 2>&1; then
+if docker compose ps mysql | grep -q "Up"; then
+    if docker compose exec -T mysql mysqladmin ping -h localhost > /dev/null 2>&1; then
         echo "✅ MySQL服务健康"
     else
         echo "❌ MySQL服务不健康"
@@ -52,8 +52,8 @@ else
 fi
 
 # Redis健康检查
-if docker-compose ps redis | grep -q "Up"; then
-    if docker-compose exec -T redis redis-cli ping > /dev/null 2>&1; then
+if docker compose ps redis | grep -q "Up"; then
+    if docker compose exec -T redis redis-cli ping > /dev/null 2>&1; then
         echo "✅ Redis服务健康"
     else
         echo "❌ Redis服务不健康"
@@ -63,7 +63,7 @@ else
 fi
 
 # API Server健康检查
-if docker-compose ps api-server | grep -q "Up"; then
+if docker compose ps api-server | grep -q "Up"; then
     if curl -f http://localhost:8080/health > /dev/null 2>&1; then
         echo "✅ API Server服务健康"
     else
@@ -94,5 +94,5 @@ echo ""
 echo "📋 建议操作:"
 echo "   启动基础设施: ./scripts/start-infrastructure.sh"
 echo "   启动应用服务: ./scripts/start-app-services.sh"
-echo "   查看详细日志: docker-compose logs -f <service_name>"
+echo "   查看详细日志: docker compose logs -f <service_name>"
 echo "   停止所有服务: ./scripts/stop-all-services.sh"

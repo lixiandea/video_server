@@ -23,7 +23,7 @@ fi
 
 # 启动基础设施服务 (MySQL, Redis, 监控组件)
 echo "🔧 启动基础设施服务..."
-docker-compose up -d mysql redis prometheus grafana jaeger
+docker compose up -d mysql redis prometheus grafana jaeger
 
 # 等待服务启动
 echo "⏳ 等待服务启动..."
@@ -31,27 +31,27 @@ sleep 15
 
 # 检查服务状态
 echo "📋 检查服务状态..."
-docker-compose ps
+docker compose ps
 
 # 验证关键服务
 echo "🔍 验证服务可用性..."
 
 # 检查MySQL
 echo "🧪 测试MySQL连接..."
-if docker-compose exec -T mysql mysqladmin ping -h localhost > /dev/null 2>&1; then
+if docker compose exec -T mysql mysqladmin ping -h localhost > /dev/null 2>&1; then
     echo "✅ MySQL服务正常"
 else
     echo "❌ MySQL服务异常"
-    docker-compose logs mysql
+    docker compose logs mysql
 fi
 
 # 检查Redis
 echo "🧪 测试Redis连接..."
-if docker-compose exec -T redis redis-cli ping > /dev/null 2>&1; then
+if docker compose exec -T redis redis-cli ping > /dev/null 2>&1; then
     echo "✅ Redis服务正常"
 else
     echo "❌ Redis服务异常"
-    docker-compose logs redis
+    docker compose logs redis
 fi
 
 # 显示服务信息
@@ -67,5 +67,5 @@ echo "   Jaeger:     http://localhost:16686"
 echo ""
 echo "📝 下一步操作："
 echo "   1. 启动应用服务: ./start-app-services.sh"
-echo "   2. 查看日志: docker-compose logs -f <service_name>"
+echo "   2. 查看日志: docker compose logs -f <service_name>"
 echo "   3. 停止服务: ./stop-infrastructure.sh"

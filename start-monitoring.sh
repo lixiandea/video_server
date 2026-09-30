@@ -13,7 +13,7 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null; then
+if ! command -v docker compose &> /dev/null; then
     echo "错误: Docker Compose未安装"
     exit 1
 fi
@@ -28,7 +28,7 @@ fi
 
 # 启动监控服务
 echo "正在启动Prometheus和Grafana..."
-docker-compose up -d prometheus grafana
+docker compose up -d prometheus grafana
 
 # 等待服务启动
 echo "等待服务启动..."
@@ -36,7 +36,7 @@ sleep 10
 
 # 检查服务状态
 echo "检查服务状态:"
-docker-compose ps prometheus grafana
+docker compose ps prometheus grafana
 
 echo ""
 echo "=== 监控服务访问地址 ==="
@@ -46,4 +46,4 @@ echo ""
 echo "=== 使用说明 ==="
 echo "1. 访问Prometheus查看原始指标数据"
 echo "2. 访问Grafana查看可视化监控面板"
-echo "3. 如需停止监控服务: docker-compose stop prometheus grafana"
+echo "3. 如需停止监控服务: docker compose stop prometheus grafana"

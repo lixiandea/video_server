@@ -116,13 +116,13 @@ scrape_configs:
 
 ```bash
 # 构建并启动所有服务
-docker-compose up -d
+docker compose up -d
 
 # 查看服务状态
-docker-compose ps
+docker compose ps
 
 # 查看日志
-docker-compose logs -f api-server
+docker compose logs -f api-server
 ```
 
 ### 2. 访问监控界面

@@ -93,16 +93,16 @@ npm run preview
 
 ```bash
 # 1. 确保后端服务正在运行
-docker-compose up -d mysql redis api-server
+docker compose up -d mysql redis api-server
 
 # 2. 构建并启动前端服务
-docker-compose up -d frontend
+docker compose up -d frontend
 
 # 3. 查看日志
-docker-compose logs -f frontend
+docker compose logs -f frontend
 
 # 4. 停止服务
-docker-compose stop frontend
+docker compose stop frontend
 ```
 
 访问 http://localhost:3000
@@ -114,7 +114,6 @@ docker-compose stop frontend
 docker build -f Dockerfile.frontend.nginx -t video-frontend:nginx .
 
 # 使用 Node.js serve
-docker build -f Dockerfile.frontend.new -t video-frontend:latest .
 
 # 运行容器
 docker run -d -p 3000:80 --name video-frontend video-frontend:nginx
@@ -124,7 +123,7 @@ docker run -d -p 3000:80 --name video-frontend video-frontend:nginx
 
 ```bash
 # 执行部署脚本
-./deploy-frontend-docker.sh
+make images
 ```
 
 ### Docker 镜像结构
@@ -271,7 +270,7 @@ docker logs video_server_frontend
 docker network inspect video_server_video_network
 
 # 重建镜像
-docker-compose build frontend
+docker compose build frontend
 ```
 
 #### 4. 测试失败
@@ -292,7 +291,7 @@ npm run test:unit -- --run
 
 ```bash
 # Docker 日志
-docker-compose logs frontend
+docker compose logs frontend
 
 # Nginx 日志（容器内）
 docker exec video_server_frontend cat /var/log/nginx/access.log
@@ -325,9 +324,9 @@ npm run test:e2e         # E2E 测试
 npm test                 # 运行所有测试
 
 # Docker
-docker-compose up -d frontend    # 启动前端容器
-docker-compose logs -f frontend  # 查看日志
-docker-compose stop frontend     # 停止容器
+docker compose up -d frontend    # 启动前端容器
+docker compose logs -f frontend  # 查看日志
+docker compose stop frontend     # 停止容器
 ```
 
 ### 目录结构

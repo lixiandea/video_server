@@ -15,12 +15,12 @@ else
 fi
 
 # 检查Docker Compose是否安装
-if ! command -v docker-compose &> /dev/null; then
+if ! command -v docker compose &> /dev/null; then
     echo "✗ Docker Compose is not installed"
     exit 1
 else
     echo "✓ Docker Compose is installed"
-    docker-compose --version
+    docker compose --version
 fi
 
 # 检查Docker守护进程是否运行
@@ -35,10 +35,10 @@ echo ""
 echo "Docker environment is ready!"
 echo ""
 echo "To start the video server environment, run:"
-echo "  ./start-docker.sh"
+echo "  make up"
 echo ""
 echo "To start only monitoring services, run:"
 echo "  ./start-monitoring.sh"
 echo ""
 echo "To stop the environment, run:"
-echo "  ./stop-docker.sh"
+echo "  make down"

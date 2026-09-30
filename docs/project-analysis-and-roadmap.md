@@ -164,7 +164,7 @@
 | 文件 | 改动 |
 | --- | --- |
 | `.env` | 移出版本跟踪（文件保留在本地磁盘），并在 `.gitignore` 中忽略 |
-| `.env.example` | 新增占位符模板，供 `docker-compose` 变量注入使用 |
+| `.env.example` | 新增占位符模板，供 `docker compose` 变量注入使用 |
 | `config.yaml`、`config-scheduler.yaml` | 删除明文数据库密码，改由 `DB_PASSWORD` 注入 |
 | `internal/config/config.go` | 新增 `server.jwt_secret`（绑定 `JWT_SECRET`）；数据库密码默认值改为空 |
 | `pkg/auth/auth.go` | 删除内置默认密钥；新增 `InitJWT`，缺失或短于 32 字符即报错；`ParseJWT` 固定校验 HS256 |
@@ -727,6 +727,41 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 
 **遗留**：`npm run lint` 尚未纳入 CI，与 `gofmt -l` 一并在 P2-4 落地。
 
+### 5.27 P2-2 前端收敛与 P2-6 脚本/文档收敛（2026-09-30）
+
+两项改动高度重叠（删除遗留前端必然牵动脚本与文档），合并为一次提交。
+
+**P2-2 前端收敛**
+
+| 范围 | 内容 |
+| --- | --- |
+| 删除 | `frontend/`（静态测试页，`server.go` 还挂在根 Go 模块）、`frontend-vue/`（已停用的 SSR 版本）、`Dockerfile.frontend`（编排用的是 `frontend-new/Dockerfile.frontend.nginx`） |
+| 删除脚本 | `run-frontend.sh`、`start-frontend.sh`、`start-all-frontends.sh` |
+| 删除文档 | `FRONTEND_CHANGES_RECORD.md`（记录已下线的 SSR 前端） |
+| 同步 | `README.md` 目录树与「启动前端」、`AGENTS.md` / `AGENTS.zh-CN.md` 结构描述、`STARTUP_GUIDE.md` 启动步骤 |
+
+**P2-6 脚本与文档收敛**
+
+| 范围 | 内容 |
+| --- | --- |
+| 新增 `Makefile` | 统一入口：`up`/`down`/`ps`/`logs`/`images`/`build`/`test`/`test-api`/`test-unit`/`test-e2e`/`lint`/`fmt`/`frontend-dev`/`monitoring-up`/`monitoring-check`/`clean`，`make help` 自文档化 |
+| 删除脚本 | `start-docker.sh`、`stop-docker.sh`（→ `make up/down`）、`start-frontend-new.sh`（→ `make frontend-dev`）、`deploy-frontend-docker.sh`（→ `make images`） |
+| 删除文档 | `OPTIMIZATION_REPORT.md`（内容已由本文档取代） |
+| 脚本修正 | 9 个脚本中 `docker-compose`（v1，已 EOL）统一为 `docker compose` v2 |
+| 文档修正 | README 中 17 处失效绝对路径（`/Users/lixiande/...`）改为相对路径、推荐命令改为 `make`；监控章节改为 `make monitoring-up` 并修正 Grafana 端口与口令来源；`frontend-new` 文档中指向不存在的 `Dockerfile.frontend.new` 与已删脚本的引用一并修正 |
+
+**验收结果**
+
+| 场景 | 结果 |
+| --- | --- |
+| `go build ./...` / `go vet ./...` | ✅ 通过，`go list ./...` 不再包含 `frontend` 包 |
+| 全部 shell 脚本 `bash -n` | ✅ 语法通过 |
+| `make help` | ✅ 列出 16 个目标 |
+| `make -n up / test-api / build` | ✅ 展开为预期命令 |
+| 失效引用扫描（v1 命令、已删脚本/文档、绝对路径、遗留前端、worker 服务） | ✅ 无残留（历史记录文档除外） |
+
+**遗留**：`docs/infrastructure/` 下仍有与当前编排不完全一致的描述（如 Jaeger 未部署、`docker-compose.monitoring.yml` 不存在），本轮只统一了命令写法；深入重写建议随阶段四的可观测性工作推进。
+
 ## 6. 实施约定
 
 - 一次只推进一个任务，独立提交，保持可回滚。
@@ -758,11 +793,11 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 - [x] P1-10 队列统计容错（`NOGROUP` → pending=0）
 - [x] P1-11 扩展视频/用户字段（分三批完成：P1-11a 用户 email/bio、P1-11b 视频封面/播放量/时长/简介、P1-11c 点赞关系与计数）
 - [x] P2-1 删除 `cmd/worker` 空壳（嵌套 module 消除，根模块覆盖全部服务，`./build.sh` 恢复可用，监控目标全部 up）
-- [ ] P2-2 前端收敛与产物出库
+- [x] P2-2 前端收敛与产物出库（仅保留 `frontend-new/`；`dist/` 早已出库）
 - [x] P2-3 限流器淘汰与可观测性加固（空闲 10 分钟的条目被回收并上报 `rate_limiter_entries`；`/metrics` 支持令牌或内网限制）
 - [ ] P2-4 测试与 CI 门禁
 - [ ] P2-5 版本化数据库迁移
-- [ ] P2-6 脚本收敛与文档修正
+- [x] P2-6 脚本收敛与文档修正（新增 Makefile 统一入口，删除 4 个重复脚本与过期报告，17 处失效绝对路径与 v1 命令全部修正）
 - [x] P2-7 修复前端 lint 配置（补齐 `.eslintrc.cjs` 并清理死代码，`npm run lint` 通过；CI 接入随 P2-4）
 - [x] P2-8 修正 git 跟踪与忽略规则（`bin/`、`frontend-new/dist/`、`storage/` 产物已出库，跟踪文件 172 → 159；依赖目录由通用 `node_modules/` 规则忽略；删除记录已暂存待提交）
 - [x] P2-9 修复前端健康检查（改用 `127.0.0.1`，容器状态 healthy）

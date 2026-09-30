@@ -7,13 +7,13 @@ echo "🚀 启动应用服务..."
 
 # 检查基础设施服务是否运行
 echo "🔍 检查基础设施服务状态..."
-if ! docker-compose ps mysql | grep -q "Up"; then
+if ! docker compose ps mysql | grep -q "Up"; then
     echo "❌ MySQL服务未运行，请先启动基础设施服务"
     echo "   执行: ./scripts/start-infrastructure.sh"
     exit 1
 fi
 
-if ! docker-compose ps redis | grep -q "Up"; then
+if ! docker compose ps redis | grep -q "Up"; then
     echo "❌ Redis服务未运行，请先启动基础设施服务"
     echo "   执行: ./scripts/start-infrastructure.sh"
     exit 1
@@ -21,11 +21,11 @@ fi
 
 # 构建应用服务镜像
 echo "🔨 构建应用服务镜像..."
-docker-compose build api-server scheduler transcode-worker frontend
+docker compose build api-server scheduler transcode-worker frontend
 
 # 启动应用服务
 echo "🔧 启动应用服务..."
-docker-compose up -d api-server scheduler transcode-worker frontend
+docker compose up -d api-server scheduler transcode-worker frontend
 
 # 等待服务启动
 echo "⏳ 等待服务启动..."
@@ -33,7 +33,7 @@ sleep 10
 
 # 检查服务状态
 echo "📋 检查服务状态..."
-docker-compose ps
+docker compose ps
 
 # 验证API服务
 echo "🔍 验证API服务..."
@@ -53,7 +53,7 @@ done
 
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     echo "❌ API服务启动超时"
-    docker-compose logs api-server
+    docker compose logs api-server
     exit 1
 fi
 
@@ -75,7 +75,7 @@ echo "   Scheduler:    http://localhost:8089"
 echo "   Frontend:     http://localhost:3000"
 echo ""
 echo "📝 常用命令："
-echo "   查看所有服务状态: docker-compose ps"
-echo "   查看服务日志:     docker-compose logs -f <service_name>"
+echo "   查看所有服务状态: docker compose ps"
+echo "   查看服务日志:     docker compose logs -f <service_name>"
 echo "   停止应用服务:     ./scripts/stop-app-services.sh"
 echo "   停止所有服务:     ./scripts/stop-all-services.sh"

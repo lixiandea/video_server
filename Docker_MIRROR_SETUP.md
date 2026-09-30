@@ -87,13 +87,13 @@ docker info
 
 ```bash
 # 启动所有服务
-docker-compose up -d
+docker compose up -d
 
 # 查看服务状态
-docker-compose ps
+docker compose ps
 
 # 停止所有服务
-docker-compose down
+docker compose down
 ```
 
 如果在配置过程中遇到任何问题，请参考上述步骤重新配置Docker镜像加速器。

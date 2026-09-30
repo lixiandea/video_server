@@ -21,23 +21,23 @@ npm run dev
 
 ```bash
 # 启动所有服务（包括 MySQL、Redis、API、前端）
-docker-compose up -d
+docker compose up -d
 
 # 查看前端日志
-docker-compose logs -f frontend
+docker compose logs -f frontend
 
 # 停止所有服务
-docker-compose down
+docker compose down
 ```
 
 ### 方式二：仅部署前端
 
 ```bash
 # 构建并启动前端容器
-docker-compose up -d frontend
+docker compose up -d frontend
 
 # 或使用部署脚本
-./deploy-frontend-docker.sh
+make images
 ```
 
 访问：http://localhost:3000
@@ -74,8 +74,6 @@ video_server/
 │   ├── Dockerfile.frontend.nginx
 │   └── README.md
 ├── docker-compose.yml      # Docker Compose 配置
-├── start-frontend-new.sh   # 启动脚本
-└── deploy-frontend-docker.sh # 部署脚本
 ```
 
 ## 常用链接
@@ -89,14 +87,14 @@ video_server/
 
 ```bash
 # 查看 Docker 容器状态
-docker-compose ps
+docker compose ps
 
 # 查看前端容器日志
 docker logs video_server_frontend
 
 # 重启前端服务
-docker-compose restart frontend
+docker compose restart frontend
 
 # 重新构建前端
-docker-compose build frontend
+docker compose build frontend
 ```

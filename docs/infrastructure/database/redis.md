@@ -87,13 +87,13 @@ REDIS_MAXMEMORY=256mb
 
 ```bash
 # 启动Redis服务
-docker-compose up -d redis
+docker compose up -d redis
 
 # 查看服务状态
-docker-compose ps redis
+docker compose ps redis
 
 # 查看日志
-docker-compose logs -f redis
+docker compose logs -f redis
 ```
 
 ### 2. 独立安装
@@ -501,7 +501,7 @@ rename-command DEBUG ""
 1. **连接超时**
    ```bash
    # 检查Redis服务状态
-   docker-compose ps redis
+   docker compose ps redis
    
    # 检查端口监听
    netstat -tlnp | grep 6379

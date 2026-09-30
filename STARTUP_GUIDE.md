@@ -53,7 +53,7 @@ git clone https://github.com/lixiandea/video_server.git
 cd video_server
 
 # 2. 一键启动所有服务
-./start-docker.sh
+make up
 
 # 3. 验证服务
 ./check-docker.sh
@@ -77,10 +77,9 @@ cd video_server
 
 ```bash
 # 给脚本添加执行权限
-chmod +x start-docker.sh
 
 # 启动所有服务（包括应用服务和监控组件）
-./start-docker.sh
+make up
 ```
 
 **启动过程说明**:
@@ -157,14 +156,14 @@ video_server_transcode_worker  Up 30 seconds
 mkdir -p storage/videos storage/temp logs
 
 # 2. 启动基础设施服务
-docker-compose up -d mysql redis prometheus grafana jaeger
+docker compose up -d mysql redis prometheus grafana jaeger
 
 # 3. 等待服务启动
 sleep 15
 
 # 4. 验证基础设施
-docker-compose exec mysql mysqladmin ping -h localhost
-docker-compose exec redis redis-cli ping
+docker compose exec mysql mysqladmin ping -h localhost
+docker compose exec redis redis-cli ping
 ```
 
 ### Step 2: 启动应用服务
@@ -177,10 +176,10 @@ docker-compose exec redis redis-cli ping
 **详细步骤**:
 ```bash
 # 1. 构建应用服务镜像
-docker-compose build api-server scheduler worker frontend
+docker compose build api-server scheduler transcode-worker frontend
 
 # 2. 启动应用服务
-docker-compose up -d api-server scheduler worker frontend
+docker compose up -d api-server scheduler transcode-worker frontend
 
 # 3. 等待服务启动
 sleep 10
@@ -196,7 +195,7 @@ curl http://localhost:8080/health
 docker compose ps
 
 # 查看特定服务日志
-docker-compose logs -f api-server
+docker compose logs -f api-server
 ```
 
 ## 方式三：本地开发模式
@@ -214,7 +213,7 @@ docker-compose logs -f api-server
 go mod tidy
 
 # 3. 启动基础设施（仅 MySQL 和 Redis）
-docker-compose up -d mysql redis
+docker compose up -d mysql redis
 ```
 
 ### 启动 API Server
@@ -295,7 +294,7 @@ chmod +x test-api.sh
 
 ```bash
 # 连接 MySQL
-docker-compose exec mysql mysql -u video_user -p"$DB_PASSWORD" video_server
+docker compose exec mysql mysql -u video_user -p"$DB_PASSWORD" video_server
 
 # 查看表
 SHOW TABLES;
@@ -352,16 +351,16 @@ panic: Failed to connect to database: dial tcp [::1]:3306: connect: connection r
 **解决方案**:
 ```bash
 # 1. 检查 MySQL 是否启动
-docker-compose ps mysql
+docker compose ps mysql
 
 # 2. 查看 MySQL 日志
-docker-compose logs mysql
+docker compose logs mysql
 
 # 3. 等待 MySQL 完全启动（首次启动需要 1-2 分钟）
 sleep 60
 
 # 4. 测试连接
-docker-compose exec mysql mysqladmin ping -h localhost
+docker compose exec mysql mysqladmin ping -h localhost
 ```
 
 ### 问题 3: API Server 持续重启
@@ -374,7 +373,7 @@ video_server_api Restarting (2) 30 seconds ago
 **解决方案**:
 ```bash
 # 1. 查看详细日志
-docker-compose logs api-server
+docker compose logs api-server
 
 # 2. 常见问题:
 # - 数据库未启动: 先启动 MySQL
@@ -382,8 +381,8 @@ docker-compose logs api-server
 # - 端口被占用: 检查 8080 端口
 
 # 3. 重新构建并启动
-docker-compose build api-server
-docker-compose up -d api-server
+docker compose build api-server
+docker compose up -d api-server
 ```
 
 ### 问题 4: 前端无法访问
@@ -396,16 +395,16 @@ docker-compose up -d api-server
 **解决方案**:
 ```bash
 # 1. 检查前端服务状态
-docker-compose ps frontend
+docker compose ps frontend
 
 # 2. 查看前端日志
-docker-compose logs frontend
+docker compose logs frontend
 
 # 3. 验证后端 API 可访问
 curl http://localhost:8080/health
 
 # 4. 重启前端服务
-docker-compose restart frontend
+docker compose restart frontend
 ```
 
 ### 问题 5: 构建镜像失败
@@ -425,7 +424,7 @@ ERROR: failed to solve: process "/bin/sh -c go mod download" did not complete su
 docker builder prune -a
 
 # 3. 重新构建
-docker-compose build --no-cache
+docker compose build --no-cache
 ```
 
 ## 停止服务
@@ -434,33 +433,33 @@ docker-compose build --no-cache
 
 ```bash
 # 方式 1: 使用脚本（推荐）
-./stop-docker.sh
+make down
 
 # 方式 2: Docker Compose 命令
-docker-compose down
+docker compose down
 
 # 方式 3: 停止并删除数据卷（彻底清理）
-docker-compose down -v
+docker compose down -v
 ```
 
 ### 停止特定服务
 
 ```bash
 # 停止应用服务
-docker-compose stop api-server scheduler worker frontend
+docker compose stop api-server scheduler transcode-worker frontend
 
 # 停止基础设施
-docker-compose stop mysql redis prometheus grafana jaeger
+docker compose stop mysql redis prometheus grafana jaeger
 
 # 仅停止某个服务
-docker-compose stop api-server
+docker compose stop api-server
 ```
 
 ### 清理资源
 
 ```bash
 # 删除所有容器
-docker-compose down
+docker compose down
 
 # 删除悬空镜像
 docker image prune
@@ -557,10 +556,10 @@ services:
 - [应用服务详细文档](./docs/applications/README.md)
 - [基础设施详细文档](./docs/infrastructure/README.md)
 - [监控系统文档](./docs/monitoring.md)
-- [优化报告](./OPTIMIZATION_REPORT.md)
+- [项目分析与优化路线图](docs/project-analysis-and-roadmap.md)
 
 ## 获取帮助
 
-- 查看日志：`docker-compose logs -f <service_name>`
-- 进入容器调试：`docker-compose exec <service_name> sh`
+- 查看日志：`docker compose logs -f <service_name>`
+- 进入容器调试：`docker compose exec <service_name> sh`
 - 查看项目文档：`ls -la docs/`

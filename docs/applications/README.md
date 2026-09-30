@@ -74,16 +74,16 @@ applications/
 cd /path/to/video_server
 
 # 构建所有服务镜像
-docker-compose build
+docker compose build
 
 # 启动所有应用服务
-docker-compose up -d api-server scheduler transcode-worker frontend
+docker compose up -d api-server scheduler transcode-worker frontend
 
 # 查看服务状态
-docker-compose ps
+docker compose ps
 
 # 查看日志
-docker-compose logs -f api-server
+docker compose logs -f api-server
 ```
 
 ### 独立部署各服务
@@ -412,7 +412,7 @@ if [ -z "$BACKUP_PATH" ]; then
 fi
 
 # 停止服务
-docker-compose down
+docker compose down
 
 # 恢复配置
 cp $BACKUP_PATH/config.yaml ./
@@ -423,7 +423,7 @@ tar -xzf $BACKUP_PATH/storage.tar.gz
 tar -xzf $BACKUP_PATH/logs.tar.gz
 
 # 启动服务
-docker-compose up -d
+docker compose up -d
 
 echo "Restore completed from $BACKUP_PATH"
 ```
@@ -489,19 +489,19 @@ func (cm *CacheManager) Get(key string) ([]byte, error) {
 
 ```bash
 # 检查服务状态
-docker-compose ps
+docker compose ps
 
 # 查看详细日志
-docker-compose logs api-server
+docker compose logs api-server
 
 # 检查资源使用
 docker stats
 
 # 网络连接检查
-docker-compose exec api-server netstat -tlnp
+docker compose exec api-server netstat -tlnp
 
 # 进入容器调试
-docker-compose exec api-server sh
+docker compose exec api-server sh
 ```
 
 ### 性能问题排查

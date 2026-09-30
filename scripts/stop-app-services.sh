@@ -7,9 +7,9 @@ echo "🛑 停止应用服务..."
 SERVICES="api-server scheduler transcode-worker frontend"
 
 for service in $SERVICES; do
-    if docker-compose ps $service | grep -q "Up"; then
+    if docker compose ps $service | grep -q "Up"; then
         echo "⏹️  停止 $service 服务..."
-        docker-compose stop $service
+        docker compose stop $service
     else
         echo "⏭️  $service 服务未运行"
     fi

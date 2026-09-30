@@ -55,13 +55,13 @@ MYSQL_PASSWORD=<your-db-password>
 
 ```bash
 # 启动MySQL服务
-docker-compose up -d mysql
+docker compose up -d mysql
 
 # 查看服务状态
-docker-compose ps mysql
+docker compose ps mysql
 
 # 查看日志
-docker-compose logs -f mysql
+docker compose logs -f mysql
 ```
 
 ### 2. 独立安装
@@ -284,7 +284,7 @@ echo "Backup completed: $BACKUP_FILE"
 
 ```bash
 # 检查MySQL服务状态
-docker-compose exec mysql mysqladmin ping -h localhost
+docker compose exec mysql mysqladmin ping -h localhost
 
 # 检查数据库连接
 mysql -u video_user -p"$DB_PASSWORD" -e "SELECT 1;"
@@ -413,16 +413,16 @@ ssl-key = /path/to/server-key.pem
 mysqldump -u root -p video_server > backup_before_upgrade.sql
 
 # 2. 停止服务
-docker-compose stop mysql
+docker compose stop mysql
 
 # 3. 修改docker-compose.yml中的镜像版本
 # image: mysql:8.0 -> image: mysql:8.4
 
 # 4. 启动新版本
-docker-compose up -d mysql
+docker compose up -d mysql
 
 # 5. 验证升级
-docker-compose exec mysql mysql -V
+docker compose exec mysql mysql -V
 ```
 
 ## 参考资源
