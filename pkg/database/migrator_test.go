@@ -116,3 +116,52 @@ func TestTruncate(t *testing.T) {
 		t.Fatalf("长字符串截断错误: %q", got)
 	}
 }
+
+func TestSelectRollbackTargetsValidatesBaselineUpfront(t *testing.T) {
+	migrations := []Migration{
+		{Version: "0001", Name: "init_schema"},
+		{Version: "0002", Name: "dedupe"},
+		{Version: "0003", Name: "add_column"},
+	}
+	applied := map[string]appliedMigration{
+		"0001": {Version: "0001"},
+		"0002": {Version: "0002"},
+		"0003": {Version: "0003"},
+	}
+
+	// 不含基线：正常选出最近 N 个已应用版本（倒序）
+	targets, err := selectRollbackTargets(migrations, applied, 2, false)
+	if err != nil {
+		t.Fatalf("不含基线时不应报错: %v", err)
+	}
+	if len(targets) != 2 || targets[0].Version != "0003" || targets[1].Version != "0002" {
+		t.Fatalf("回滚目标选择错误: %#v", targets)
+	}
+
+	// 含基线且未显式允许：必须在执行前整体拒绝，且不返回任何目标
+	targets, err = selectRollbackTargets(migrations, applied, 3, false)
+	if err == nil || !strings.Contains(err.Error(), "基线") {
+		t.Fatalf("含基线时应拒绝，实际: %v", err)
+	}
+	if len(targets) != 0 {
+		t.Fatalf("拒绝时不应返回任何待执行目标，实际: %#v", targets)
+	}
+
+	// 显式允许后可包含基线
+	targets, err = selectRollbackTargets(migrations, applied, 3, true)
+	if err != nil {
+		t.Fatalf("显式允许基线时不应报错: %v", err)
+	}
+	if len(targets) != 3 || targets[2].Version != "0001" {
+		t.Fatalf("显式允许基线时目标错误: %#v", targets)
+	}
+
+	// 未应用的版本不进入目标
+	targets, err = selectRollbackTargets(migrations, map[string]appliedMigration{"0002": {Version: "0002"}}, 5, false)
+	if err != nil {
+		t.Fatalf("不应报错: %v", err)
+	}
+	if len(targets) != 1 || targets[0].Version != "0002" {
+		t.Fatalf("只应回滚已应用版本: %#v", targets)
+	}
+}

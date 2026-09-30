@@ -185,20 +185,13 @@ func MigrateDown(db *gorm.DB, dir string, steps int, allowBaseline bool) ([]Migr
 		return nil, err
 	}
 
-	targets := make([]Migration, 0, steps)
-	for i := len(migrations) - 1; i >= 0 && len(targets) < steps; i-- {
-		if _, ok := applied[migrations[i].Version]; ok {
-			targets = append(targets, migrations[i])
-		}
+	targets, err := selectRollbackTargets(migrations, applied, steps, allowBaseline)
+	if err != nil {
+		return nil, err
 	}
 
 	var rolled []Migration
 	for _, m := range targets {
-		if IsBaseline(migrations, m.Version) && !allowBaseline {
-			return rolled, fmt.Errorf(
-				"拒绝回滚基线迁移 %s_%s：该操作会删除全部业务表；确需执行请设置 MIGRATE_ALLOW_BASELINE_DOWN=1",
-				m.Version, m.Name)
-		}
 		if err := rollbackMigration(db, m); err != nil {
 			return rolled, err
 		}
@@ -206,6 +199,31 @@ func MigrateDown(db *gorm.DB, dir string, steps int, allowBaseline bool) ([]Migr
 	}
 
 	return rolled, nil
+}
+
+// selectRollbackTargets 先整体确定并校验待回滚版本，再交由调用方执行。
+// 校验必须发生在任何 down 语句之前：否则「先回滚了 N，再在基线处报错」会留下
+// 部分回滚的中间状态，违背「任一步失败即不产生部分回滚」的约定。
+func selectRollbackTargets(migrations []Migration, applied map[string]appliedMigration, steps int, allowBaseline bool) ([]Migration, error) {
+	targets := make([]Migration, 0, steps)
+	for i := len(migrations) - 1; i >= 0 && len(targets) < steps; i-- {
+		if _, ok := applied[migrations[i].Version]; ok {
+			targets = append(targets, migrations[i])
+		}
+	}
+
+	if !allowBaseline {
+		for _, m := range targets {
+			if IsBaseline(migrations, m.Version) {
+				return nil, fmt.Errorf(
+					"拒绝回滚基线迁移 %s_%s：该操作会删除全部业务表；确需执行请设置 MIGRATE_ALLOW_BASELINE_DOWN=1"+
+						"（为避免部分回滚，本次未执行任何 down 语句）",
+					m.Version, m.Name)
+			}
+		}
+	}
+
+	return targets, nil
 }
 
 // MigrationStatus 返回全部版本的应用状态。
