@@ -4,7 +4,7 @@
 - `cmd/` — 各服务入口：`api-server`、`scheduler`、`worker`、`transcode-worker`。
 - `internal/` — 应用代码：`handlers/`（Gin HTTP 层）、`services/`（业务逻辑）、`models/`（GORM 模型）、`middleware/`、`config/`、`utils/`。
 - `pkg/` — 可复用库：`auth`、`database`、`redis`、`storage`、`queue`、`metrics`、`tracing`、`logging`、`errors`、`validation`。
-- `api/` — 接口契约；`frontend/`（旧版静态页）、`frontend-vue/`（Vue 3 SSR）、`frontend-new/`（主用 Vue 3 + Vite 应用）。
+- `api/` — 接口契约；`frontend-new/` — 唯一前端（Vue 3 + Vite），容器内由 Nginx 托管。
 - 前端测试位于 `frontend-new/src/tests/{unit,e2e}`。脚本测试套件：`test-api.sh`、`test-monitoring.sh`。配置见 `config.yaml`、`docker/`、`deploy/`，文档见 `docs/`。
 
 ## 构建、测试与开发命令

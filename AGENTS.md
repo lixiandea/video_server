@@ -4,7 +4,7 @@
 - `cmd/` — service entrypoints: `api-server`, `scheduler`, `worker`, `transcode-worker`.
 - `internal/` — application code: `handlers/` (Gin HTTP), `services/` (business logic), `models/` (GORM), `middleware/`, `config/`, `utils/`.
 - `pkg/` — reusable libraries: `auth`, `database`, `redis`, `storage`, `queue`, `metrics`, `tracing`, `logging`, `errors`, `validation`.
-- `api/` — request/response contracts; `frontend/` (legacy static), `frontend-vue/` (Vue 3 SSR), `frontend-new/` (primary Vue 3 + Vite app).
+- `api/` — request/response contracts; `frontend-new/` — the single frontend (Vue 3 + Vite), served by Nginx in Docker.
 - Frontend tests live in `frontend-new/src/tests/{unit,e2e}`. Shell suites: `test-api.sh`, `test-monitoring.sh`. Config in `config.yaml`, `docker/`, `deploy/`, docs in `docs/`.
 
 ## Build, Test, and Development Commands

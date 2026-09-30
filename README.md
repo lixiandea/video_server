@@ -93,23 +93,10 @@ video_server/
 │   └── transcode-worker/       # 转码工作服务
 ├── docker/                     # Docker 配置
 │   └── mysql/                  # MySQL 初始化脚本
-├── frontend/                   # 传统前端测试界面
-│   ├── css/                    # 样式表
-│   ├── js/                     # JavaScript 文件
-│   ├── server.go               # 前端服务器
-│   └── index.html              # 主页面
-├── frontend-vue/               # Vue SSR 视频网站
-│   ├── src/                    # Vue 源码
-│   ├── pages/                  # 页面组件
-│   ├── components/             # 可复用组件
-│   ├── assets/                 # 静态资源
-│   ├── static/                 # 静态文件
-│   ├── dist/                   # 构建输出
-│   ├── server.js               # SSR 服务端
-│   ├── webpack.*.js            # Webpack 配置
-│   ├── entry-*.js              # 入口文件
-│   ├── package.json            # 依赖配置
-│   └── README.md               # 文档
+├── frontend-new/               # 前端（Vue 3 + Vite，唯一前端）
+│   ├── src/                    # 源码：views / components / stores / api / tests
+│   ├── nginx.conf              # 容器内 Nginx 静态资源与 /api 反向代理配置
+│   └── Dockerfile.frontend.nginx
 ├── internal/                   # 内部应用代码
 │   ├── config/                 # 配置管理
 │   ├── handlers/               # HTTP 请求处理器
@@ -132,7 +119,6 @@ video_server/
 ├── .env                        # 环境变量
 ├── build.sh                    # 构建脚本
 ├── start.sh                    # 启动后端服务脚本
-├── start-frontend.sh           # 启动前端服务脚本
 ├── start-docker.sh             # 启动 Docker 环境脚本
 ├── stop-docker.sh              # 停止 Docker 环境脚本
 ├── check-docker.sh             # Docker 环境检查脚本
@@ -429,13 +415,18 @@ chmod +x test-api.sh
 
 ### 启动前端
 
-1. 确保后端服务正在运行
-2. 启动前端服务器：
-   ```bash
-   chmod +x start-frontend.sh
-   ./start-frontend.sh
-   ```
-3. 在浏览器中打开 `http://localhost:3000`
+前端仅保留 `frontend-new/`（Vue 3 + Vite）。
+
+```bash
+# 方式一：容器（推荐，Nginx 托管静态资源并反向代理 /api）
+docker compose up -d frontend
+# 默认 http://localhost:8000，可用 FRONTEND_PORT 覆盖
+
+# 方式二：本地开发服务器
+cd frontend-new
+npm install
+npm run dev            # http://localhost:3000
+```
 
 ### 前端功能
 

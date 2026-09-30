@@ -251,12 +251,12 @@ go run main.go
 ### 启动 Frontend
 
 ```bash
-# 方式 1: 使用脚本
-./start-frontend.sh
+# 方式 1: 容器（Nginx 托管并反代 /api）
+docker compose up -d frontend
 
-# 方式 2: 手动启动
-cd frontend
-go run server.go
+# 方式 2: 本地开发服务器
+cd frontend-new
+npm install && npm run dev
 ```
 
 ## 服务验证
