@@ -700,6 +700,33 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 **遗留**：历史记录类文档（`OPTIMIZATION_REPORT.md`、`STARTUP_GUIDE.md` 的服务
 清单快照、`README.md` 中的失效绝对路径）留待 P2-6 统一修正。
 
+### 5.26 P2-7 修复前端 lint 配置（2026-09-30）
+
+**问题**：`frontend-new` 从未提交过 ESLint 配置文件，`npm run lint` 直接报
+`ESLint couldn't find a configuration file`；且脚本未忽略 `dist/`，会去扫描打包产物。
+
+**改动**
+
+| 文件 | 改动 |
+| --- | --- |
+| `frontend-new/.eslintrc.cjs`（新增） | 经典配置：`eslint:recommended` + `plugin:vue/vue3-essential`；忽略 `dist/`、`node_modules/`、`coverage/`、`playwright-report/`、`test-results/`；为 `src/tests/**` 声明 Vitest 全局 |
+| `frontend-new/src/App.vue` | `import * as bootstrap` 改为副作用导入 `import 'bootstrap'`（导航栏 `data-bs-toggle` 依赖该副作用，不能直接删除） |
+| `frontend-new/src/views/Profile.vue` | 删除未使用的 `computed` 导入与 `apiClient` 导入 |
+| `frontend-new/src/views/Upload.vue` | 删除未使用的 `videoApi` 导入 |
+| `frontend-new/src/tests/unit/VideoPlayer.test.js` | 删除未使用的 `vi` 导入 |
+
+**验收结果**
+
+| 场景 | 结果 |
+| --- | --- |
+| `npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs` | ✅ 0 problem |
+| `npm run lint`（含 `--fix`） | ✅ 通过且不产生额外改动 |
+| `cd frontend-new && npx vitest run` | ✅ 3 文件 / 22 用例 |
+| `npm run build` | ✅ 构建成功 |
+| 重建前端镜像后 Playwright e2e | ⚠️ 18/19（仅剩 `home.spec.js` 那条既有 strict mode 断言，留待 P2-4） |
+
+**遗留**：`npm run lint` 尚未纳入 CI，与 `gofmt -l` 一并在 P2-4 落地。
+
 ## 6. 实施约定
 
 - 一次只推进一个任务，独立提交，保持可回滚。
@@ -736,7 +763,7 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 - [ ] P2-4 测试与 CI 门禁
 - [ ] P2-5 版本化数据库迁移
 - [ ] P2-6 脚本收敛与文档修正
-- [ ] P2-7 修复前端 lint 配置
+- [x] P2-7 修复前端 lint 配置（补齐 `.eslintrc.cjs` 并清理死代码，`npm run lint` 通过；CI 接入随 P2-4）
 - [x] P2-8 修正 git 跟踪与忽略规则（`bin/`、`frontend-new/dist/`、`storage/` 产物已出库，跟踪文件 172 → 159；依赖目录由通用 `node_modules/` 规则忽略；删除记录已暂存待提交）
 - [x] P2-9 修复前端健康检查（改用 `127.0.0.1`，容器状态 healthy）
 - [x] P2-10 全仓 gofmt 收敛（26 个文件已格式化，`gofmt -l` 输出为空；CI 门禁随 P2-4 落地）

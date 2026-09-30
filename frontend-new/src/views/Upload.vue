@@ -112,7 +112,6 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useVideoStore } from '@/stores/video'
-import videoApi from '@/api/video'
 
 const router = useRouter()
 const videoStore = useVideoStore()

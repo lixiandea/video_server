@@ -133,12 +133,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import userApi from '@/api/user'
 import videoApi from '@/api/video'
-import apiClient from '@/api/client'
 
 const router = useRouter()
 const userStore = useUserStore()

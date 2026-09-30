@@ -77,7 +77,8 @@
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import * as bootstrap from 'bootstrap'
+// 仅为副作用导入：导航栏的 data-bs-toggle（collapse / dropdown）由 Bootstrap JS 提供
+import 'bootstrap'
 
 const router = useRouter()
 const userStore = useUserStore()
