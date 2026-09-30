@@ -37,6 +37,16 @@ if [ $? -ne 0 ]; then
 fi
 cd ../..
 
+# Build migration CLI
+echo "Building migrate CLI..."
+cd cmd/migrate
+go build -o ../../bin/migrate .
+if [ $? -ne 0 ]; then
+    echo "Failed to build migrate CLI"
+    exit 1
+fi
+cd ../..
+
 echo "Build completed successfully!"
 echo "Binaries are located in the 'bin' directory:"
 ls -la bin/

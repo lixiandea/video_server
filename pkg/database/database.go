@@ -47,9 +47,9 @@ func connectDelay() time.Duration {
 	return defaultConnectDelay
 }
 
-// InitDatabase initializes the database connection with retry and monitoring.
-// It returns an error instead of panicking so callers can exit gracefully.
-func InitDatabase(cfg *config.DatabaseConfig) (*gorm.DB, error) {
+// Connect 建立数据库连接（带重试与连接池设置），不执行任何建表动作。
+// 供迁移命令与需要「只连接」的调用方使用；InitDatabase 在此之上再执行自动迁移。
+func Connect(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=Local",
 		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name, cfg.Charset)
 
@@ -90,12 +90,8 @@ func InitDatabase(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database after %d attempt(s): %w", attempts, err)
 	}
 
-	DB = db
-
-	migrateSchema(DB)
-
 	// Set connection pool with optimized settings
-	sqlDB, err := DB.DB()
+	sqlDB, err := db.DB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database instance: %w", err)
 	}
@@ -109,6 +105,29 @@ func InitDatabase(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	// Start database metrics collection
 	go collectDBMetrics(sqlDB)
 
+	logging.GetLogger().Info("Database connected",
+		zap.String("host", cfg.Host),
+		zap.Int("port", cfg.Port),
+		zap.String("database", cfg.Name),
+	)
+
+	return db, nil
+}
+
+// InitDatabase 建立连接并（按配置）执行启动时的自动迁移。
+// It returns an error instead of panicking so callers can exit gracefully.
+func InitDatabase(cfg *config.DatabaseConfig) (*gorm.DB, error) {
+	db, err := Connect(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	DB = db
+
+	if autoMigrateEnabled() {
+		migrateSchema(DB)
+	}
+
 	logging.GetLogger().Info("Database initialized successfully",
 		zap.String("host", cfg.Host),
 		zap.Int("port", cfg.Port),
@@ -116,6 +135,12 @@ func InitDatabase(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	)
 
 	return DB, nil
+}
+
+// autoMigrateEnabled 返回是否执行启动时的 GORM AutoMigrate。
+// 第 1 步保持现状（默认开启），第 3 步会切换为默认关闭。
+func autoMigrateEnabled() bool {
+	return true
 }
 
 const (
