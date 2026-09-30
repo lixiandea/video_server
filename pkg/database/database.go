@@ -124,8 +124,11 @@ func InitDatabase(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 
 	DB = db
 
-	if autoMigrateEnabled() {
+	if cfg.AutoMigrate {
+		logging.GetLogger().Warn("启动时自动迁移已启用（DB_AUTO_MIGRATE=true），仅建议在本地/CI 使用")
 		migrateSchema(DB)
+	} else {
+		logging.GetLogger().Info("启动时自动迁移已禁用，结构变更请执行 migrate up")
 	}
 
 	logging.GetLogger().Info("Database initialized successfully",
@@ -135,12 +138,6 @@ func InitDatabase(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	)
 
 	return DB, nil
-}
-
-// autoMigrateEnabled 返回是否执行启动时的 GORM AutoMigrate。
-// 第 1 步保持现状（默认开启），第 3 步会切换为默认关闭。
-func autoMigrateEnabled() bool {
-	return true
 }
 
 const (

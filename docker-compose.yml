@@ -16,6 +16,12 @@ services:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - video_network
 
@@ -30,6 +36,26 @@ services:
     networks:
       - video_network
 
+  # 一次性迁移服务：库结构变更的唯一入口（服务启动时不再 AutoMigrate）
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    container_name: video_server_migrate
+    restart: "no"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: ["up"]
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=video_user
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      - DB_NAME=video_server
+    networks:
+      - video_network
+
   api-server:
     build:
       context: .
@@ -37,8 +63,12 @@ services:
     container_name: video_server_api
     restart: always
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "8080:8080"
     environment:
@@ -66,7 +96,10 @@ services:
     container_name: video_server_scheduler
     restart: always
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "8089:8089"
     environment:
@@ -90,8 +123,12 @@ services:
     container_name: video_server_transcode_worker
     restart: always
     depends_on:
-      - redis
-      - mysql
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
     environment:
       - DB_HOST=mysql
       - DB_PORT=3306

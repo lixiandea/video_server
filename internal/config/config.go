@@ -44,6 +44,10 @@ type DatabaseConfig struct {
 	Password string `mapstructure:"password"`
 	Name     string `mapstructure:"name"`
 	Charset  string `mapstructure:"charset"`
+	// AutoMigrate 控制服务启动时是否执行 GORM AutoMigrate。
+	// 默认关闭：结构变更统一走 `migrate up`（见 docs/database-migration-strategy.md）；
+	// 仅本地/CI 追求「一条命令起库」时才开启，且 release 模式会强制忽略。
+	AutoMigrate bool `mapstructure:"auto_migrate"`
 }
 
 type RedisConfig struct {
@@ -85,6 +89,7 @@ func LoadConfig() *Config {
 	viper.SetDefault("database.password", "")
 	viper.SetDefault("database.name", "video_server")
 	viper.SetDefault("database.charset", "utf8mb4")
+	viper.SetDefault("database.auto_migrate", false)
 
 	viper.SetDefault("redis.addr", "localhost:6379")
 	viper.SetDefault("redis.password", "")
@@ -109,6 +114,7 @@ func LoadConfig() *Config {
 	viper.BindEnv("database.user", "DB_USER")
 	viper.BindEnv("database.password", "DB_PASSWORD")
 	viper.BindEnv("database.name", "DB_NAME")
+	viper.BindEnv("database.auto_migrate", "DB_AUTO_MIGRATE")
 
 	// Bind environment variables for redis
 	viper.BindEnv("redis.addr", "REDIS_ADDR")
@@ -140,6 +146,12 @@ func LoadConfig() *Config {
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		log.Fatalf("Unable to decode config into struct: %v", err)
+	}
+
+	// release 模式一律不允许启动时改表：结构变更必须走显式的 migrate up
+	if config.Server.Mode == "release" && config.Database.AutoMigrate {
+		log.Println("Warning: DB_AUTO_MIGRATE is ignored in release mode; run `migrate up` instead")
+		config.Database.AutoMigrate = false
 	}
 
 	AppConfig = &config

@@ -148,3 +148,37 @@ migrate status  → 打印全部版本：applied / pending / checksum mismatch
 | 三服务并发迁移 | 整段持 `GET_LOCK`；编排上改为一次性 `migrate` 服务从根上避免并发 |
 | 既有数据丢失 | 基线只 `CREATE TABLE IF NOT EXISTS`、绝不 `DROP`；`down` 默认禁止且需显式确认 |
 | 迁移把大表锁住影响线上 | 单版本单 DDL、必要时用 `ALGORITHM=INPLACE`；避开业务高峰执行 |
+
+---
+
+## 11. 实施记录（2026-10-01）
+
+决策点 A–D 均按建议执行：删除 admin 种子账号、清理重复唯一索引、使用一次性
+compose 服务执行迁移、保留 `DB_AUTO_MIGRATE` 开关（默认关闭，release 强制忽略）。
+
+按第 8 节的四步落地（前三步已完成，第四步为可选门禁）：
+
+| 步骤 | 提交 | 内容 |
+| --- | --- | --- |
+| 1 | `e6c49b9` | `pkg/database/migrator.go` + `cmd/migrate` + 7 组单测；`Connect` 从 `InitDatabase` 拆出；`build.sh` 产出 `bin/migrate` |
+| 2 | `e0aef29` | `0001_init_schema`（真实库结构）与 `0002_dedupe_users_unique_index`；修复验证中发现的「部分回滚」缺陷 |
+| 3 | 本步 | `DB_AUTO_MIGRATE` 默认关闭（release 强制忽略）、`init.sql` 只建库、`Dockerfile.migrate` 与一次性 `migrate` 服务、mysql `healthcheck`、三个服务改为等待迁移完成、Makefile 迁移目标 |
+
+### 验证结果
+
+| # | 场景 | 结果 |
+| --- | --- | --- |
+| 1 | 空库 `migrate up` | ✅ 6 张业务表 + 版本表，与既有库逐表 `SHOW CREATE TABLE` 完全一致 |
+| 2 | 既有库（含数据）`migrate up` | ✅ 除 0002 的索引清理外结构与数据零变化（逐表 diff + 行数比对） |
+| 3 | 连续两次 `up` | ✅ 第二次输出 `no pending migrations` |
+| 4 | 并发两个 `up` | ✅ 一个执行、另一个等锁后报 `no pending`，无重复 DDL |
+| 5 | `down` 与基线保护 | ✅ 0002 可回滚且可重复；命中基线时整体拒绝，不产生部分回滚 |
+| 6 | 服务不再建表 | ✅ 空库启动 api-server 后表数仍为 0；`DB_AUTO_MIGRATE=true` 时才建表 |
+| 7 | checksum 防护 | ✅ 改动已应用脚本后 `status` 报 `checksum-mismatch`（退出码 1），`up` 直接拒绝 |
+| 8 | 全新编排 | ✅ `down -v` 后一键启动：migrate `Exited(0)`、7 张表齐备、`test-api.sh` 13/13、Playwright e2e 19/19 |
+
+### 已知限制
+
+- MySQL 的 DDL 隐式提交，无法把整个版本包进事务；失败版本不会登记，修复后重跑即可，
+  脚本规范要求单版本单变更 + 幂等写法。
+- 基线 `0001` 显式指定 `utf8mb4_0900_ai_ci`，要求 MySQL 8.0（与 compose / CI 一致）。

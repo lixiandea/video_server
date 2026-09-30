@@ -14,7 +14,8 @@
 - `./build.sh` (or `make build`) — builds `api-server`, `scheduler`, `transcode-worker` into `bin/`.
 - `go build ./...` — compile all Go packages; run `go vet ./...` and `go test ./...` before committing.
 - `go run ./cmd/api-server` — run the API locally (needs MySQL/Redis).
-- `make up` / `make down` — start / stop the compose stack.
+- `make up` / `make down` — start / stop the compose stack (the one-shot `migrate` service runs first).
+- `make migrate-up` / `make migrate-status` / `make migrate-down` — database schema changes and rollback.
 - `make test-api` (`./test-api.sh`) — curl-based integration tests against a running server.
 - `cd frontend-new && npm install && npm run dev` — dev server on `:3000` (`make frontend-dev`).
 - `npm run build`, `npm run lint`, `npm test` (unit + e2e), `npm run test:unit`, `npm run test:e2e`.
@@ -23,7 +24,7 @@
 - Copy `.env.example` to `.env` first; `docker-compose.yml` uses `${VAR:?}` so missing secrets abort the run. `docker compose config -q` validates the file without starting anything.
 - `make up` (`docker compose up -d`) starts all 8 services (mysql, redis, api-server, scheduler, transcode-worker, frontend, prometheus, grafana). Frontend: `:8000` (`FRONTEND_PORT`), API: `:8080`, Prometheus: `:9090`, Grafana: `:3301` (`GRAFANA_PORT`).
 - Override `FRONTEND_PORT` / `GRAFANA_PORT` when the host reserves those ports (common on Windows/WSL2, e.g. the 2952-3051 range).
-- `docker/mysql/init.sql` only seeds the database and the `users` table; every other table is created by GORM `AutoMigrate` at startup, serialized across services with a MySQL `GET_LOCK` named lock. Keep DDL out of `init.sql` unless you also change `internal/models`.
+- Schema changes go through versioned migrations: add `migrations/<NNNN>_<name>.{up,down}.sql` (up/down must be paired) and run `make migrate-up`. The one-shot `migrate` compose service runs `up` before api-server / scheduler / transcode-worker start. Services no longer auto-migrate: `DB_AUTO_MIGRATE=true` is a local/CI-only escape hatch and is ignored in release mode. `docker/mysql/init.sql` only creates the database.
 - Alpine-based images use a domestic apk mirror and `frontend-new` uses `registry.npmmirror.com`; keep both in mind when builds fail on network access.
 - `.dockerignore` keeps `node_modules/`, `dist/`, `.env` and docs out of the build context; verify new build inputs are not accidentally excluded.
 

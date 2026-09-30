@@ -12,7 +12,8 @@
 - `./build.sh`（或 `make build`）— 构建 `api-server`、`scheduler`、`transcode-worker` 到 `bin/`。
 - `go build ./...` — 编译全部 Go 包；提交前运行 `go vet ./...` 与 `go test ./...`。
 - `go run ./cmd/api-server` — 本地启动 API（需 MySQL/Redis）。
-- `make up` / `make down` — 启动 / 停止 compose 服务栈。
+- `make up` / `make down` — 启动 / 停止 compose 服务栈（会先执行一次性 `migrate` 服务）。
+- `make migrate-up` / `make migrate-status` / `make migrate-down` — 数据库结构变更与回滚。
 - `make test-api`（`./test-api.sh`）— 针对运行中服务的 curl 集成测试。
 - `cd frontend-new && npm install && npm run dev` — 在 `:3000` 启动开发服务（等价 `make frontend-dev`）。
 - `npm run build`、`npm run lint`、`npm test`（单元 + e2e）、`npm run test:unit`、`npm run test:e2e`。
@@ -21,7 +22,7 @@
 - 先复制 `.env.example` 为 `.env`；`docker-compose.yml` 使用 `${VAR:?}`，缺失密钥会直接中止。用 `docker compose config -q` 校验配置。
 - `make up`（`docker compose up -d`）启动全部 8 个服务（mysql、redis、api-server、scheduler、transcode-worker、frontend、prometheus、grafana）。前端 `:8000`（`FRONTEND_PORT`）、API `:8080`、Prometheus `:9090`、Grafana `:3301`（`GRAFANA_PORT`）。
 - 主机保留端口时可覆盖 `FRONTEND_PORT` / `GRAFANA_PORT`（Windows/WSL2 常见，如 2952-3051 段）。
-- `docker/mysql/init.sql` 只创建数据库与 `users` 表，其余表由服务启动时的 GORM `AutoMigrate` 创建，并用 MySQL `GET_LOCK` 命名锁串行化。除非同步修改 `internal/models`，否则不要在 `init.sql` 里加业务表 DDL。
+- 结构变更统一走版本化迁移：新增 `migrations/<4位序号>_<描述>.{up,down}.sql`（两者必须成对）并执行 `make migrate-up`。一次性 `migrate` 服务会在 api-server / scheduler / transcode-worker 之前跑完 `up`。服务不再自动迁移：`DB_AUTO_MIGRATE=true` 仅供本地/CI 起库，release 模式强制忽略。`docker/mysql/init.sql` 只负责建库。
 - Alpine 基础镜像使用国内 apk 镜像，`frontend-new` 使用 `registry.npmmirror.com`；构建因网络失败时先检查这两处。
 - `.dockerignore` 会排除 `node_modules/`、`dist/`、`.env` 与文档；新增构建输入时确认未被误排除。
 

@@ -5,7 +5,7 @@ COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up down ps logs build images test test-unit test-e2e test-api lint fmt frontend-dev monitoring-up monitoring-check clean
+.PHONY: help up down ps logs build images test test-unit test-e2e test-api lint fmt frontend-dev migrate-up migrate-status migrate-down monitoring-up monitoring-check clean
 
 help: ## 显示所有可用目标
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -51,6 +51,15 @@ fmt: ## 用 gofmt 格式化全部 Go 文件
 
 frontend-dev: ## 启动前端开发服务器（:3000）
 	cd frontend-new && npm install && npm run dev
+
+migrate-up: ## 应用数据库迁移（一次性容器）
+	$(COMPOSE) run --rm migrate up
+
+migrate-status: ## 查看迁移版本状态
+	$(COMPOSE) run --rm migrate status
+
+migrate-down: ## 回滚最近 1 个迁移版本（破坏性操作）
+	$(COMPOSE) run --rm migrate down --steps 1 --yes
 
 monitoring-up: ## 单独启动 Prometheus + Grafana
 	./start-monitoring.sh

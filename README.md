@@ -184,6 +184,17 @@ make up                 # 等价于 docker compose up -d --remove-orphans
 make ps                 # 查看状态
 ```
 
+数据库结构由一次性的 `migrate` 服务负责创建与升级（api-server 等服务会等它成功后再启动），
+不再由服务启动时的 `AutoMigrate` 建表。手动执行：
+
+```bash
+make migrate-status     # 查看版本状态
+make migrate-up         # 应用未执行的迁移
+make migrate-down       # 回滚最近 1 个版本（破坏性，详见迁移策略文档）
+```
+
+详见 [数据库迁移策略](docs/database-migration-strategy.md)。
+
 - API 服务: http://localhost:8080
 - 前端: http://localhost:8000（`FRONTEND_PORT` 可覆盖）
 - Grafana: http://localhost:3301（`GRAFANA_PORT` 可覆盖）
@@ -199,6 +210,7 @@ make ps                 # 查看状态
 | `make build` | 本地编译 Go 二进制 |
 | `make test` | 后端 build+vet+test 与前端单元测试 |
 | `make test-api` | 对运行中的服务执行 `test-api.sh` |
+| `make migrate-up` / `make migrate-status` | 数据库迁移与状态查询 |
 | `make lint` | 前端 ESLint |
 | `make fmt` | gofmt 全仓格式化 |
 

@@ -788,6 +788,37 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 
 **遗留**：CI 尚未在真实 GitHub Runner 上跑过一次（本地无 GitHub/网络权限）；`e2e` 作业依赖 `vite` 开发服务器在 `:3000` 启动，与本地 Windows 保留端口冲突无关（Runner 为 Linux）。
 
+### 5.29 P2-5 版本化数据库迁移（2026-10-01）
+
+设计见 [`docs/database-migration-strategy.md`](database-migration-strategy.md)，实施分三步落地。
+
+**改动**
+
+| 范围 | 内容 |
+| --- | --- |
+| `pkg/database/migrator.go`（新增） | 迁移目录加载（命名规范、up/down 配对、升序、SHA-256）、语句切分、`up`/`down`/`status`；整段持 `GET_LOCK`，按文件成功后登记 `schema_migrations`；checksum 变动即拒绝；基线默认禁止回滚 |
+| `pkg/database/database.go` | 拆出 `Connect`（只连接不建表）；`InitDatabase` 仅在 `DB_AUTO_MIGRATE=true` 时执行 AutoMigrate |
+| `cmd/migrate`（新增） | `up` / `down --steps N --yes` / `status`，连接参数走 `DB_*` |
+| `migrations/0001_init_schema.*` | 基线，取自真实库结构，全部 `CREATE TABLE IF NOT EXISTS`（既有库空转接管，新库直接建表） |
+| `migrations/0002_dedupe_users_unique_index.*` | 条件 DDL 清理历史漂移产生的重复唯一索引 |
+| `internal/config` | 新增 `database.auto_migrate`（`DB_AUTO_MIGRATE`，默认 false，release 强制忽略） |
+| `Dockerfile.migrate` + `docker-compose.yml` | 一次性 `migrate` 服务（`restart: "no"`）+ mysql `healthcheck`；api-server / scheduler / transcode-worker 改为 `service_completed_successfully` 依赖 |
+| `docker/mysql/init.sql` | 精简为只建库，移除 `users` 建表语句与 admin 种子账号（符合 P0-1） |
+| `Makefile`、`build.sh` | 新增 `migrate-up` / `migrate-status` / `migrate-down`；构建 `bin/migrate` |
+
+**验收结果**（真实库 + 临时空库 + 全新编排）
+
+| 场景 | 结果 |
+| --- | --- |
+| 空库 `up` 与既有库逐表结构比对 | ✅ 6 张表完全一致 |
+| 既有库（含数据）`up` | ✅ 除索引清理外结构与数据零变化 |
+| 幂等 / 并发 / checksum / 基线保护 | ✅ 均符合预期（并发下无重复 DDL） |
+| 服务不再建表 | ✅ 空库启动 api-server 后表数为 0；开关打开时才建表 |
+| `docker compose down -v` 后一键启动 | ✅ migrate `Exited(0)`、7 张表、`test-api.sh` 13/13、e2e 19/19 |
+| 单测 / 构建 | ✅ `go test ./pkg/database/...` 通过、`go build`/`vet` 通过 |
+
+**遗留**：第 8.4 步的「模型↔库结构一致性」CI 门禁尚未实现（可选）；MySQL 5.7 不支持基线脚本显式指定的 `utf8mb4_0900_ai_ci`，与 compose/CI 的 8.0 一致故未处理。
+
 ## 6. 实施约定
 
 - 一次只推进一个任务，独立提交，保持可回滚。
@@ -822,7 +853,7 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 - [x] P2-2 前端收敛与产物出库（仅保留 `frontend-new/`；`dist/` 早已出库）
 - [x] P2-3 限流器淘汰与可观测性加固（空闲 10 分钟的条目被回收并上报 `rate_limiter_entries`；`/metrics` 支持令牌或内网限制）
 - [x] P2-4 测试与 CI 门禁（CI 拆为 backend/api/frontend/e2e 四个作业，覆盖 gofmt、go vet/test、lint、vitest 与 Playwright；e2e 全绿 19/19）
-- [ ] P2-5 版本化数据库迁移（**设计已完成**，见 [迁移策略](database-migration-strategy.md)；实施待确认第 9 节决策点）
+- [x] P2-5 版本化数据库迁移（`migrations/` + `cmd/migrate` + 一次性 compose 服务；服务不再 AutoMigrate，回滚与基线保护均已验证）
 - [x] P2-6 脚本收敛与文档修正（新增 Makefile 统一入口，删除 4 个重复脚本与过期报告，17 处失效绝对路径与 v1 命令全部修正）
 - [x] P2-7 修复前端 lint 配置（补齐 `.eslintrc.cjs` 并清理死代码，`npm run lint` 通过；CI 接入随 P2-4）
 - [x] P2-8 修正 git 跟踪与忽略规则（`bin/`、`frontend-new/dist/`、`storage/` 产物已出库，跟踪文件 172 → 159；依赖目录由通用 `node_modules/` 规则忽略；删除记录已暂存待提交）
