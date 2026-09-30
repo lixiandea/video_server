@@ -822,7 +822,7 @@ P1-11 涉及用户字段、视频字段与点赞三块，按「一次一个可�
 - [x] P2-2 前端收敛与产物出库（仅保留 `frontend-new/`；`dist/` 早已出库）
 - [x] P2-3 限流器淘汰与可观测性加固（空闲 10 分钟的条目被回收并上报 `rate_limiter_entries`；`/metrics` 支持令牌或内网限制）
 - [x] P2-4 测试与 CI 门禁（CI 拆为 backend/api/frontend/e2e 四个作业，覆盖 gofmt、go vet/test、lint、vitest 与 Playwright；e2e 全绿 19/19）
-- [ ] P2-5 版本化数据库迁移
+- [ ] P2-5 版本化数据库迁移（**设计已完成**，见 [迁移策略](database-migration-strategy.md)；实施待确认第 9 节决策点）
 - [x] P2-6 脚本收敛与文档修正（新增 Makefile 统一入口，删除 4 个重复脚本与过期报告，17 处失效绝对路径与 v1 命令全部修正）
 - [x] P2-7 修复前端 lint 配置（补齐 `.eslintrc.cjs` 并清理死代码，`npm run lint` 通过；CI 接入随 P2-4）
 - [x] P2-8 修正 git 跟踪与忽略规则（`bin/`、`frontend-new/dist/`、`storage/` 产物已出库，跟踪文件 172 → 159；依赖目录由通用 `node_modules/` 规则忽略；删除记录已暂存待提交）
