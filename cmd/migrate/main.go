@@ -11,8 +11,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/lixiandea/video_server/internal/config"
+	"github.com/lixiandea/video_server/internal/models"
 	"github.com/lixiandea/video_server/pkg/database"
 	"github.com/lixiandea/video_server/pkg/logging"
 )
@@ -46,6 +48,8 @@ func main() {
 		err = runDown(cfg, dir, os.Args[2:])
 	case "status":
 		err = runStatus(cfg, dir)
+	case "check":
+		err = runCheck(cfg)
 	case "help", "-h", "--help":
 		usage()
 		return
@@ -68,6 +72,7 @@ func usage() {
   up                       应用所有未执行的迁移
   down [--steps N] --yes   回滚最近 N 个版本（默认 1），需 --yes 确认
   status                   查看各版本状态
+  check                    校验模型定义与库结构是否一致
 
 环境变量:
   DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME  数据库连接
@@ -163,5 +168,46 @@ func runStatus(cfg *config.Config, dir string) error {
 		return fmt.Errorf("%d 个已应用迁移的脚本内容发生变化，请新增版本而不是修改历史脚本", mismatched)
 	}
 
+	return nil
+}
+
+func runCheck(cfg *config.Config) error {
+	db, err := database.Connect(&cfg.Database)
+	if err != nil {
+		return err
+	}
+
+	modelsToCheck := []interface{}{
+		&models.User{},
+		&models.Video{},
+		&models.VideoLike{},
+		&models.Comment{},
+		&models.Session{},
+		&models.VideoDeletionRecord{},
+	}
+	issues, err := database.CheckModelSchema(db, modelsToCheck...)
+	if err != nil {
+		return err
+	}
+
+	drift := 0
+	for _, issue := range issues {
+		switch {
+		case issue.MissingTable:
+			fmt.Printf("❌ %s: 表不存在\n", issue.Table)
+			drift++
+		case len(issue.MissingColumns) > 0:
+			fmt.Printf("❌ %s: 缺少列 %s\n", issue.Table, strings.Join(issue.MissingColumns, ", "))
+			drift++
+		}
+		if len(issue.ExtraColumns) > 0 {
+			fmt.Printf("ℹ️  %s: 多出列 %s（历史遗留，不影响运行）\n", issue.Table, strings.Join(issue.ExtraColumns, ", "))
+		}
+	}
+
+	if drift > 0 {
+		return fmt.Errorf("%d 张表的库结构落后于模型定义，请新增迁移补齐", drift)
+	}
+	fmt.Printf("✅ 模型与库结构一致（%d 个模型）\n", len(modelsToCheck))
 	return nil
 }

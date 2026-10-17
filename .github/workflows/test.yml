@@ -74,12 +74,19 @@ jobs:
         go-version: '1.21'
         cache: true
 
-    - name: 初始化数据库
-      run: |
-        mysql -h 127.0.0.1 -P 3306 -u root -p"$CI_DB_PASSWORD" video_server_test < docker/mysql/init.sql
-
     - name: 构建服务
       run: ./build.sh
+
+    - name: 应用数据库迁移并校验模型一致性
+      env:
+        DB_HOST: 127.0.0.1
+        DB_PORT: "3306"
+        DB_USER: root
+        DB_PASSWORD: ${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'ci-only-throwaway' }}
+        DB_NAME: video_server_test
+      run: |
+        ./bin/migrate up
+        ./bin/migrate check
 
     - name: 运行 API 集成测试
       run: |
@@ -163,10 +170,19 @@ jobs:
         cache: npm
         cache-dependency-path: frontend-new/package-lock.json
 
-    - name: 初始化数据库并构建服务
+    - name: 构建服务
+      run: ./build.sh
+
+    - name: 应用数据库迁移并校验模型一致性
+      env:
+        DB_HOST: 127.0.0.1
+        DB_PORT: "3306"
+        DB_USER: root
+        DB_PASSWORD: ${{ secrets.CI_MYSQL_ROOT_PASSWORD || 'ci-only-throwaway' }}
+        DB_NAME: video_server_test
       run: |
-        mysql -h 127.0.0.1 -P 3306 -u root -p"$CI_DB_PASSWORD" video_server_test < docker/mysql/init.sql
-        ./build.sh
+        ./bin/migrate up
+        ./bin/migrate check
 
     - name: 后台启动 API server
       run: |
