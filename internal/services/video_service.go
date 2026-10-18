@@ -49,7 +49,7 @@ func (s *VideoService) CreateVideo(authorID uint, name string) (*models.Video, e
 		AuthorID:     authorID,
 		Name:         name,
 		DisplayCTime: ctime,
-		Status:       "active",
+		Status:       "processing",
 	}
 
 	result := s.db.Create(video)
@@ -189,6 +189,20 @@ func (s *VideoService) UpdateVideo(videoID string, updates map[string]interface{
 	}
 	if result.RowsAffected == 0 {
 		return apperrors.NotFoundf("video not found")
+	}
+
+	s.invalidateVideoCache(videoID)
+	return nil
+}
+
+// SetVideoStatus 更新转码阶段状态（processing / active / failed）。
+// 已删除的视频保持 deleted，避免转码结果把已删除内容重新发布。
+func (s *VideoService) SetVideoStatus(videoID, status string) error {
+	result := s.db.Model(&models.Video{}).
+		Where("uuid = ? AND status <> ?", videoID, "deleted").
+		Update("status", status)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update video status: %w", result.Error)
 	}
 
 	s.invalidateVideoCache(videoID)

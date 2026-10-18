@@ -85,9 +85,12 @@
               <div v-else class="row g-3">
                 <div v-for="video in myVideos" :key="video.video_id" class="col-6 col-md-4">
                   <div class="card video-card" @click="goToVideo(video.video_id)">
-                    <div class="video-thumb">
+                    <div class="video-thumb position-relative">
                       <img v-if="video.cover_url" :src="video.cover_url" :alt="video.name" loading="lazy">
                       <i v-else class="bi bi-film"></i>
+                      <span v-if="statusLabel(video.status)" class="badge bg-secondary position-absolute top-0 start-0 m-1">
+                        {{ statusLabel(video.status) }}
+                      </span>
                     </div>
                     <div class="card-body p-2">
                       <h6 class="card-title text-truncate small">{{ video.name }}</h6>
@@ -206,6 +209,12 @@ async function handleUpdate() {
 
 function goToVideo(id) {
   router.push(`/video/${id}`)
+}
+
+function statusLabel(status) {
+  if (status === 'processing') return '转码中'
+  if (status === 'failed') return '转码失败'
+  return ''
 }
 </script>
 

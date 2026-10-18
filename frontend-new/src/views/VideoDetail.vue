@@ -8,7 +8,16 @@
             <i class="bi bi-exclamation-triangle"></i> {{ streamError }}
           </div>
 
-          <div class="video-player-section mb-4">
+          <div v-if="isProcessing" class="alert alert-info" role="alert">
+            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+            视频正在转码，完成后会自动刷新…
+          </div>
+
+          <div v-else-if="isFailed" class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> 视频转码失败，请重新上传或删除。
+          </div>
+
+          <div v-else class="video-player-section mb-4">
             <VideoPlayer
               v-if="videoUrl"
               ref="playerRef"
@@ -150,7 +159,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useVideoStore } from '@/stores/video'
 import { useUserStore } from '@/stores/user'
@@ -165,6 +174,8 @@ const userStore = useUserStore()
 
 const videoId = computed(() => route.params.id)
 const currentVideo = computed(() => videoStore.currentVideo)
+const isProcessing = computed(() => currentVideo.value?.status === 'processing')
+const isFailed = computed(() => currentVideo.value?.status === 'failed')
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const isOwner = computed(() => {
   return isLoggedIn.value && currentVideo.value?.author_id === userStore.user?.id
@@ -184,6 +195,13 @@ const relatedLoading = ref(false)
 
 const playerRef = ref(null)
 
+let processingTimer = null
+let processingPolls = 0
+
+onUnmounted(() => {
+  if (processingTimer) clearTimeout(processingTimer)
+})
+
 onMounted(async () => {
   await loadVideoDetail()
   await loadComments()
@@ -195,10 +213,24 @@ async function loadVideoDetail() {
     const data = await videoStore.fetchVideoDetail(videoId.value)
     likeCount.value = data.like_count || 0
     isLiked.value = !!data.liked
+    if (data.status === 'processing') {
+      scheduleProcessingPoll()
+      return
+    }
     await loadStreamUrl()
   } catch (err) {
     console.error('Failed to load video:', err)
   }
+}
+
+// 转码中每 3 秒刷新一次详情，最长约 3 分钟
+function scheduleProcessingPoll() {
+  if (processingTimer || processingPolls >= 60) return
+  processingPolls++
+  processingTimer = setTimeout(async () => {
+    processingTimer = null
+    await loadVideoDetail()
+  }, 3000)
 }
 
 // 播放地址需要短时效令牌：媒体元素无法携带 Authorization 头

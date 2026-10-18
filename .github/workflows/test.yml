@@ -101,17 +101,28 @@ jobs:
         done
         curl -fs http://localhost:8080/health || { echo "API server 未就绪"; cat /tmp/api-server.log; exit 1; }
 
+        # 上传后视频处于 processing，需由 worker 转码完成才会变为 active
+        mkdir -p storage/videos storage/temp
+        DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=root \
+          DB_PASSWORD="$CI_DB_PASSWORD" DB_NAME=video_server_test \
+          REDIS_ADDR=127.0.0.1:6379 \
+          STORAGE_VIDEO_DIR=./storage/videos STORAGE_TEMP_DIR=./storage/temp \
+          ./bin/transcode-worker > /tmp/transcode-worker.log 2>&1 &
+
         # test-api.sh 使用仓库内的 testdata/sample.mp4 固件，不依赖外网下载
         ./test-api.sh
 
     - name: 失败时输出服务日志
       if: failure()
-      run: cat /tmp/api-server.log || true
+      run: |
+        cat /tmp/api-server.log || true
+        cat /tmp/transcode-worker.log || true
 
     - name: 清理
       if: always()
       run: |
         pkill api-server || true
+        pkill transcode-worker || true
         rm -f /tmp/video_test/test_video.mp4
 
   frontend:

@@ -112,7 +112,28 @@ function upload_video() {
     TEST_VIDEO_ID=$(echo "$response" | jq -r '.video_id // empty')
     if [ -n "$TEST_VIDEO_ID" ]; then
         echo -e "${CYAN}📹 Video uploaded successfully: $TEST_VIDEO_ID${NC}"
+        wait_video_ready || return 1
     fi
+}
+
+# 上传后视频处于 processing，等转码完成再继续（最多 30 秒）
+function wait_video_ready() {
+    local token=$(jq -r '.token' /tmp/login_response.json)
+    local video_id="$TEST_VIDEO_ID"
+    local status=""
+
+    echo -e "${CYAN}⏳ Waiting for transcode to finish...${NC}"
+    for i in $(seq 1 30); do
+        status=$(curl -s "http://localhost:8080/api/v1/videos/$video_id" \
+            -H "Authorization: Bearer $token" | jq -r '.status // empty')
+        if [ "$status" = "active" ]; then
+            echo -e "${CYAN}✅ Video is playable${NC}"
+            return 0
+        fi
+        sleep 1
+    done
+    echo -e "${RED}❌ Video did not become active (last status: ${status:-unknown})${NC}"
+    return 1
 }
 
 function get_user_videos() {

@@ -154,6 +154,15 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 			zap.String("video_id", video.UUID))
 	}
 
+	if transcodeStatus != "queued" {
+		// 没有可用的转码任务时原始文件仍可直接播放，避免视频停留在 processing
+		if err := h.videoService.SetVideoStatus(video.UUID, "active"); err != nil {
+			logging.GetLogger().Warn("Failed to mark video active after skipping transcode",
+				zap.String("video_id", video.UUID),
+				zap.Error(err))
+		}
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message":          "Video uploaded successfully",
 		"video_id":         video.UUID,
@@ -201,18 +210,24 @@ func (h *VideoHandler) GetVideoInfo(c *gin.Context) {
 		return
 	}
 
-	if video.Status != "active" {
+	// processing / failed 也允许查看详情，前端据此展示转码状态；deleted 及未知状态按不存在处理
+	switch video.Status {
+	case "active", "processing", "failed":
+	default:
 		utils.Fail(c, http.StatusNotFound, "Video not found")
 		return
 	}
 
-	// 打开详情页即计一次观看：写库并失效缓存；失败不影响内容展示
-	if err := h.videoService.IncrementViewCount(video.UUID); err != nil {
-		logging.GetLogger().Warn("Failed to increment view count",
-			zap.String("video_id", video.UUID),
-			zap.Error(err))
-	} else {
-		video.ViewCount++
+	// 打开详情页即计一次观看：写库并失效缓存；失败不影响内容展示。
+	// 转码中的视频尚未可播放，不计入播放量。
+	if video.Status == "active" {
+		if err := h.videoService.IncrementViewCount(video.UUID); err != nil {
+			logging.GetLogger().Warn("Failed to increment view count",
+				zap.String("video_id", video.UUID),
+				zap.Error(err))
+		} else {
+			video.ViewCount++
+		}
 	}
 
 	// 获取作者信息

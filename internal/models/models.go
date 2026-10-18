@@ -29,7 +29,7 @@ type Video struct {
 	FilePath     string  `gorm:"not null" json:"file_path"`
 	Size         int64   `json:"size"`
 	Duration     float64 `json:"duration"`                     // in seconds
-	Status       string  `gorm:"default:active" json:"status"` // active, deleted, processing
+	Status       string  `gorm:"default:active" json:"status"` // active, processing, failed, deleted
 	DisplayCTime string  `json:"display_ctime"`
 	// Description / CoverPath / ViewCount 为 P1-11b 新增的展示字段
 	Description string `gorm:"type:varchar(500);default:''" json:"description"`

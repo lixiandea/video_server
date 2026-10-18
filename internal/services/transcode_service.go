@@ -175,6 +175,7 @@ func (s *TranscodeService) processTask(ctx context.Context, task *queue.Transcod
 				completedAt := time.Now()
 				task.CompletedAt = &completedAt
 				s.queue.UpdateTaskStatus(ctx, task)
+				s.markVideoFailed(task.VideoID)
 			} else {
 				logger.Warn("Transcode task requeued for retry",
 					zap.Int("retry", task.Retries),
@@ -186,6 +187,7 @@ func (s *TranscodeService) processTask(ctx context.Context, task *queue.Transcod
 			completedAt := time.Now()
 			task.CompletedAt = &completedAt
 			s.queue.UpdateTaskStatus(ctx, task)
+			s.markVideoFailed(task.VideoID)
 		}
 	} else {
 		logger.Info("Transcode completed successfully", zap.String("output_path", outputPath))
@@ -224,8 +226,26 @@ func (s *TranscodeService) persistResult(task *queue.TranscodeTask, outputPath s
 	if err := s.videoService.UpdateVideo(task.VideoID, updates); err != nil {
 		return fmt.Errorf("failed to persist transcode result: %w", err)
 	}
+	if err := s.videoService.SetVideoStatus(task.VideoID, "active"); err != nil {
+		return fmt.Errorf("failed to mark video active: %w", err)
+	}
 
 	return nil
+}
+
+// markVideoFailed 在重试耗尽或无法重新入队时把视频标记为转码失败。
+func (s *TranscodeService) markVideoFailed(videoID string) {
+	if database.DB == nil {
+		return
+	}
+	if s.videoService == nil {
+		s.videoService = NewVideoService()
+	}
+	if err := s.videoService.SetVideoStatus(videoID, "failed"); err != nil {
+		logging.GetLogger().Error("Failed to mark video as failed",
+			zap.String("video_id", videoID),
+			zap.Error(err))
+	}
 }
 
 // extractMetadata 在转码成功后补充时长与封面（P1-11b）。
