@@ -43,6 +43,13 @@ jobs:
         go vet ./...
         go test ./...
 
+    - name: 校验 Prometheus 告警规则
+      run: |
+        docker run --rm \
+          -v "$PWD/deploy/monitoring:/rules:ro" \
+          --entrypoint promtool \
+          prom/prometheus:v2.40.0 check rules /rules/alerts.yml
+
   api:
     name: API 集成测试
     runs-on: ubuntu-latest

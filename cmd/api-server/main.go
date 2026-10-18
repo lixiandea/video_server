@@ -202,6 +202,16 @@ func main() {
 			select {
 			case <-ticker.C:
 				metrics.CollectSystemMetrics()
+				// 转码队列水位：worker 本身不暴露 /metrics，由 API 侧统一上报供告警使用。
+				if taskQueue != nil {
+					statsCtx, statsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					if stats, err := taskQueue.GetQueueStats(statsCtx); err == nil {
+						metrics.SetTranscodeQueueStats(stats.QueueLength, stats.PendingCount, stats.ProcessingCount)
+					} else {
+						logging.GetLogger().Debug("Failed to collect transcode queue stats", zap.Error(err))
+					}
+					statsCancel()
+				}
 			}
 		}
 	}()

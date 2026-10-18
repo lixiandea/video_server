@@ -1,0 +1,81 @@
+# Prometheus 告警规则，挂载到容器的 /etc/prometheus/alerts.yml。
+# 阈值是当前单机 compose 部署的起步基线，接入真实流量后再按 SLO 调整。
+groups:
+  - name: video-server-availability
+    rules:
+      - alert: ApiServerDown
+        expr: up{job="video-api-server"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API server 不可抓取"
+          description: "Prometheus 连续 1 分钟无法抓取 {{ $labels.instance }}，先看 docker compose ps 与 api-server 日志。"
+          runbook: "docs/monitoring.md#告警-runbook"
+
+      - alert: SchedulerDown
+        expr: up{job="video-scheduler"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scheduler 不可抓取"
+          description: "Prometheus 连续 2 分钟无法抓取 {{ $labels.instance }}；清理任务会停摆，但不影响 API 读写。"
+          runbook: "docs/monitoring.md#告警-runbook"
+
+  - name: video-server-http
+    rules:
+      # 注意：分母 clamp 到非零，避免无流量时出现 NaN。
+      - record: job:http_request_error_ratio:5m
+        expr: |
+          sum(rate(http_requests_total{job="video-api-server", status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_requests_total{job="video-api-server"}[5m])), 1e-9)
+
+      - record: job:http_request_duration_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="video-api-server"}[5m]))
+          )
+
+      - alert: HighHttpErrorRate
+        expr: job:http_request_error_ratio:5m > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 5xx 比例超过 5%"
+          description: "最近 5 分钟 5xx 比例 {{ $value | humanizePercentage }}，检查 api-server 日志与数据库连接。"
+          runbook: "docs/monitoring.md#告警-runbook"
+
+      - alert: HighHttpLatencyP95
+        expr: job:http_request_duration_p95:5m > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API p95 延迟超过 1s"
+          description: "最近 5 分钟 p95 延迟 {{ $value | humanizeDuration }}，先看慢查询与 Redis/MySQL 状态。"
+          runbook: "docs/monitoring.md#告警-runbook"
+
+  - name: video-server-capacity
+    rules:
+      - alert: TranscodeQueueBacklog
+        expr: max(transcode_queue_pending{job="video-api-server"}) > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "转码队列积压"
+          description: "pending 任务 {{ $value }} 个且持续 10 分钟，检查 transcode-worker 是否存活、并发是否足够。"
+          runbook: "docs/monitoring.md#告警-runbook"
+
+      - alert: DatabaseConnectionsHigh
+        expr: max(db_connections_open{job=~"video-api-server|video-scheduler"}) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据库连接数偏高"
+          description: "当前 open connections = {{ $value }}（MySQL 默认 max_connections=151），检查连接泄漏或慢查询。"
+          runbook: "docs/monitoring.md#告警-runbook"

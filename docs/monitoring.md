@@ -102,12 +102,22 @@ volumes:
 # deploy/monitoring/prometheus.yml
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
 
 scrape_configs:
   - job_name: 'video-api-server'
     static_configs:
       - targets: ['api-server:8080']
     metrics_path: '/metrics'
+
+  - job_name: 'video-scheduler'
+    static_configs:
+      - targets: ['scheduler:8089']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
 ```
 
 ## 使用指南
@@ -127,9 +137,9 @@ docker compose logs -f api-server
 
 ### 2. 访问监控界面
 
-- **Grafana仪表板**: http://localhost:3000 (admin/admin)
-- **Prometheus**: http://localhost:9090
-- **Jaeger追踪**: http://localhost:16686
+- **Grafana 仪表板**: http://localhost:3301（管理员密码见 `.env` 的 `GRAFANA_ADMIN_PASSWORD`）
+- **Prometheus**: http://localhost:9090（告警页面 `/alerts`，规则页面 `/rules`）
+- **Jaeger 追踪**: 未包含在 `docker-compose.yml` 中；`pkg/tracing` 仅保留接入接口
 
 ### 3. 查看指标
 
@@ -137,6 +147,74 @@ docker compose logs -f api-server
 ```bash
 curl http://localhost:8080/metrics
 ```
+
+### 4. 查看告警
+
+```bash
+# 当前处于 pending / firing 的告警
+curl -s http://localhost:9090/api/v1/alerts | jq
+
+# 已加载的规则与上次求值结果
+curl -s http://localhost:9090/api/v1/rules | jq
+```
+
+Prometheus 页面：http://localhost:9090/alerts 与 http://localhost:9090/rules
+
+## 告警规则与 SLO
+
+规则文件：[`deploy/monitoring/alerts.yml`](../deploy/monitoring/alerts.yml)，由 `prometheus.yml` 的
+`rule_files` 加载，`docker-compose.yml` 将其只读挂载到 `/etc/prometheus/alerts.yml`。
+
+| 告警 | 级别 | 条件 | 持续 |
+| --- | --- | --- | --- |
+| `ApiServerDown` | critical | `up{job="video-api-server"} == 0` | 1m |
+| `SchedulerDown` | warning | `up{job="video-scheduler"} == 0` | 2m |
+| `HighHttpErrorRate` | critical | 5xx 比例 > 5% | 5m |
+| `HighHttpLatencyP95` | warning | p95 > 1s | 10m |
+| `TranscodeQueueBacklog` | warning | `transcode_queue_pending > 50` | 10m |
+| `DatabaseConnectionsHigh` | warning | `db_connections_open > 80` | 10m |
+
+同时提供两条记录规则，便于在 Grafana 与告警中复用：`job:http_request_error_ratio:5m`、
+`job:http_request_duration_p95:5m`。
+
+**SLO 起步基线**
+
+| SLI | 目标 | 说明 |
+| --- | --- | --- |
+| API 可用性 | 99.5% / 月 | 以 `up{job="video-api-server"}` 计算，约允许 3.6 小时不可用 |
+| API 5xx 比例 | < 1% | 5 分钟窗口；告警阈值 5% 留出缓冲 |
+| API p95 延迟 | < 1s | 5 分钟窗口 |
+| 转码积压 | pending < 50 | 持续 10 分钟视为异常 |
+
+阈值是单机 compose 的起步值，接入真实流量后再收紧。修改规则后先校验：
+
+```bash
+docker run --rm --entrypoint promtool \
+  -v "$PWD/deploy/monitoring:/rules:ro" \
+  prom/prometheus:v2.40.0 check rules /rules/alerts.yml
+```
+
+> `transcode_queue_*` 由 api-server 每 30 秒从 Redis 采集后上报（worker 不单独暴露 `/metrics`）；
+> `db_connections_open` 由数据库连接池每 30 秒刷新。
+>
+> 当前只配置了"规则触发"，没有部署 Alertmanager，因此不会主动推送通知；需要邮件/IM 通知时，
+> 接入 Alertmanager 并配置 receiver（Webhook / 邮件 / 飞书等）。
+
+## 告警 Runbook
+
+- **ApiServerDown**：`docker compose ps` 看容器状态 → `docker compose logs --tail=200 api-server` →
+  检查 MySQL/Redis 是否健康 → 确认 8080 端口未被其他进程占用。
+- **SchedulerDown**：`docker compose logs --tail=200 scheduler`；确认 8089 端口与 `/metrics` 正常；
+  清理任务停摆期间 API 读写不受影响。
+- **HighHttpErrorRate**：按 `endpoint` / `status` 拆分 `http_requests_total` 定位 5xx 集中的接口；
+  再查 api-server 日志中的 `level=error` 与数据库连接/慢查询。
+- **HighHttpLatencyP95**：先看 `db_query_duration_seconds` 的 p95 与 Redis 延迟；再看是否被大文件
+  上传/播放占满带宽。
+- **TranscodeQueueBacklog**：`docker compose ps transcode-worker` 与
+  `docker logs --tail=200 video_server_transcode_worker`；检查 `XPENDING` 与
+  `TRANSCODE_CONCURRENCY`。
+- **DatabaseConnectionsHigh**：`SHOW PROCESSLIST` 看长事务；确认连接池大小与 `max_connections`
+  的余量；必要时重启发生泄漏的服务。
 
 ## 代码集成示例
 
@@ -248,7 +326,7 @@ du -sh logs/
 
 ## 扩展建议
 
-1. **告警配置**: 在Prometheus中配置告警规则
+1. **告警通知**: 接入 Alertmanager 并把 receiver 配到邮件/IM（当前规则只负责触发）
 2. **日志聚合**: 集成ELK或类似日志聚合方案
 3. **APM集成**: 考虑集成更完整的APM解决方案
 4. **自动化运维**: 基于监控数据实现自动扩缩容
