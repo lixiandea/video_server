@@ -77,6 +77,12 @@ jobs:
     - name: 构建服务
       run: ./build.sh
 
+    - name: 安装 ffmpeg（转码链路测试需要）
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq ffmpeg
+        ffmpeg -version | head -1
+
     - name: 应用数据库迁移并校验模型一致性
       env:
         DB_HOST: 127.0.0.1
