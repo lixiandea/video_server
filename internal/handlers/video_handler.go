@@ -250,20 +250,21 @@ func (h *VideoHandler) GetVideoInfo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"video_id":     video.UUID,
-		"name":         video.Name,
-		"description":  video.Description,
-		"author_id":    video.AuthorID,
-		"author_name":  author.LoginName,
-		"cover_url":    coverURL(video),
-		"display_time": video.DisplayCTime,
-		"size":         video.Size,
-		"duration":     video.Duration,
-		"view_count":   video.ViewCount,
-		"like_count":   video.LikeCount,
-		"liked":        liked,
-		"status":       video.Status,
-		"created_at":   video.CreatedAt,
+		"video_id":      video.UUID,
+		"name":          video.Name,
+		"description":   video.Description,
+		"author_id":     video.AuthorID,
+		"author_name":   author.LoginName,
+		"cover_url":     coverURL(video),
+		"display_time":  video.DisplayCTime,
+		"size":          video.Size,
+		"duration":      video.Duration,
+		"view_count":    video.ViewCount,
+		"like_count":    video.LikeCount,
+		"liked":         liked,
+		"status":        video.Status,
+		"hls_available": video.HLSPath != "",
+		"created_at":    video.CreatedAt,
 	})
 }
 
@@ -569,4 +570,71 @@ func (h *VideoHandler) GetVideoStream(c *gin.Context) {
 	videoPath := h.resolveVideoPath(video)
 	c.Header("Content-Type", "video/mp4")
 	c.File(videoPath)
+}
+
+// GetVideoHLS 提供 HLS 播放列表与分片。
+// 播放列表中的相对 URI 会补上 ?token=：浏览器解析相对地址时会丢掉查询参数，
+// 否则分片请求无法通过 StreamAuthMiddleware。
+func (h *VideoHandler) GetVideoHLS(c *gin.Context) {
+	videoID := c.Param("video_id")
+
+	video, err := h.videoService.GetVideoByID(videoID)
+	if err != nil {
+		utils.FailFrom(c, err, "Video not found")
+		return
+	}
+	if video.Status != "active" || video.HLSPath == "" {
+		utils.Fail(c, http.StatusNotFound, "Video not found")
+		return
+	}
+
+	name := c.Param("file")
+	if !validHLSFileName(name) {
+		utils.Fail(c, http.StatusNotFound, "File not found")
+		return
+	}
+
+	filePath := filepath.Join(filepath.Dir(video.HLSPath), name)
+	if _, err := os.Stat(filePath); err != nil {
+		utils.Fail(c, http.StatusNotFound, "File not found")
+		return
+	}
+
+	if strings.HasSuffix(name, ".m3u8") {
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			utils.FailFrom(c, err, "Failed to read playlist")
+			return
+		}
+		if token := c.Query("token"); token != "" {
+			content = withPlaylistToken(content, token)
+		}
+		c.Header("Cache-Control", "no-store")
+		c.Data(http.StatusOK, "application/vnd.apple.mpegurl", content)
+		return
+	}
+
+	c.Header("Content-Type", "video/mp2t")
+	c.File(filePath)
+}
+
+// validHLSFileName 只放行 playlist 与分片文件名，避免目录穿越。
+func validHLSFileName(name string) bool {
+	if name == "" || strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") {
+		return false
+	}
+	return strings.HasSuffix(name, ".m3u8") || strings.HasSuffix(name, ".ts")
+}
+
+// withPlaylistToken 给 playlist 中的相对 URI 追加播放令牌，注释行保持不变。
+func withPlaylistToken(content []byte, token string) []byte {
+	lines := strings.Split(string(content), "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.Contains(trimmed, "?") {
+			continue
+		}
+		lines[i] = trimmed + "?token=" + token
+	}
+	return []byte(strings.Join(lines, "\n"))
 }

@@ -40,6 +40,12 @@ const videoApi = {
     return `${apiClient.defaults.baseURL}/videos/${id}/stream?${query.toString()}`
   },
 
+  // 多码率 HLS 地址：后端会把 token 补到 playlist 里的每个相对分片 URI
+  getVideoHls(id, token) {
+    const query = new URLSearchParams({ token })
+    return `${apiClient.defaults.baseURL}/videos/${id}/hls/index.m3u8?${query.toString()}`
+  },
+
   uploadVideo(formData, onProgress) {
     return apiClient.post('/videos/upload', formData, {
       headers: {

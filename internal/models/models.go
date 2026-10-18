@@ -34,8 +34,10 @@ type Video struct {
 	// Description / CoverPath / ViewCount 为 P1-11b 新增的展示字段
 	Description string `gorm:"type:varchar(500);default:''" json:"description"`
 	CoverPath   string `gorm:"type:varchar(255);default:''" json:"cover_path"`
-	ViewCount   int64  `gorm:"not null;default:0" json:"view_count"`
-	LikeCount   int64  `gorm:"not null;default:0" json:"like_count"`
+	// HLSPath 是多码率 HLS 的 master playlist 路径；为空时回退到 MP4 流。
+	HLSPath   string `gorm:"type:varchar(255);default:''" json:"hls_path"`
+	ViewCount int64  `gorm:"not null;default:0" json:"view_count"`
+	LikeCount int64  `gorm:"not null;default:0" json:"like_count"`
 }
 
 // VideoLike 记录「谁点赞了哪个视频」，(user_id, video_uuid) 组合唯一，

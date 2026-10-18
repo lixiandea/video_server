@@ -154,9 +154,9 @@ func (s *TranscodeService) processTask(ctx context.Context, task *queue.Transcod
 	s.queue.UpdateTaskStatus(ctx, task)
 
 	// 执行转码并落库产物路径
-	outputPath, err := s.executeTranscode(ctx, task)
+	outputPath, hlsPath, err := s.executeTranscode(ctx, task)
 	if err == nil {
-		err = s.persistResult(task, outputPath)
+		err = s.persistResult(task, outputPath, hlsPath)
 	}
 
 	if err != nil {
@@ -209,7 +209,7 @@ func (s *TranscodeService) processTask(ctx context.Context, task *queue.Transcod
 
 // persistResult 把转码产物路径与大小写回视频记录，并失效 Redis 缓存，
 // 使 api-server 立即按新路径提供播放；数据库不可用时返回错误（任务会重试）。
-func (s *TranscodeService) persistResult(task *queue.TranscodeTask, outputPath string) error {
+func (s *TranscodeService) persistResult(task *queue.TranscodeTask, outputPath, hlsPath string) error {
 	if database.DB == nil {
 		return fmt.Errorf("database not initialized, cannot persist transcode result")
 	}
@@ -218,6 +218,9 @@ func (s *TranscodeService) persistResult(task *queue.TranscodeTask, outputPath s
 	}
 
 	updates := map[string]interface{}{"file_path": outputPath}
+	if hlsPath != "" {
+		updates["hls_path"] = hlsPath
+	}
 	if info, err := os.Stat(outputPath); err == nil {
 		updates["size"] = info.Size()
 	}
@@ -330,11 +333,11 @@ func extractCover(sourcePath, coverPath string) error {
 	return fmt.Errorf("ffmpeg could not extract a cover frame: %s", string(lastOutput))
 }
 
-// executeTranscode 执行转码，返回产物路径
-func (s *TranscodeService) executeTranscode(ctx context.Context, task *queue.TranscodeTask) (string, error) {
+// executeTranscode 执行 MP4 转码并打包多码率 HLS，返回 (MP4 路径, master playlist 路径)。
+func (s *TranscodeService) executeTranscode(ctx context.Context, task *queue.TranscodeTask) (string, string, error) {
 	// 检查源文件是否存在
 	if _, err := os.Stat(task.SourcePath); os.IsNotExist(err) {
-		return "", fmt.Errorf("source file not found: %s", task.SourcePath)
+		return "", "", fmt.Errorf("source file not found: %s", task.SourcePath)
 	}
 
 	// 生成输出文件名
@@ -343,7 +346,7 @@ func (s *TranscodeService) executeTranscode(ctx context.Context, task *queue.Tra
 
 	// 创建输出目录
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
-		return "", fmt.Errorf("failed to create output directory: %w", err)
+		return "", "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	// 构建 ffmpeg 命令
@@ -404,20 +407,93 @@ func (s *TranscodeService) executeTranscode(ctx context.Context, task *queue.Tra
 	if err != nil {
 		// 缺少 ffmpeg 时必须失败：此前“模拟转码”会把任务标记为完成但没有产物，
 		// 导致上层以为转码成功、播放却找不到文件。
-		return "", fmt.Errorf("ffmpeg not found in PATH: %w", err)
+		return "", "", fmt.Errorf("ffmpeg not found in PATH: %w", err)
 	}
 
 	// 执行 ffmpeg
 	cmd := exec.CommandContext(ctx, ffmpegPath, ffmpegArgs...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("ffmpeg error: %w, output: %s", err, string(output))
+		return "", "", fmt.Errorf("ffmpeg error: %w, output: %s", err, string(output))
 	}
 
 	// 更新进度
 	task.Progress = 100
 
-	return outputPath, nil
+	hlsPath, err := s.packHLS(ctx, task.SourcePath, task.VideoID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to package HLS: %w", err)
+	}
+
+	return outputPath, hlsPath, nil
+}
+
+// hlsRendition 描述一路 HLS 码率。
+type hlsRendition struct {
+	name      string
+	height    int
+	bitrate   string
+	bufsize   string
+	audioRate string
+	bandwidth int
+}
+
+var hlsRenditions = []hlsRendition{
+	{name: "480p", height: 480, bitrate: "800k", bufsize: "1600k", audioRate: "64k", bandwidth: 900000},
+	{name: "720p", height: 720, bitrate: "1500k", bufsize: "3000k", audioRate: "96k", bandwidth: 1650000},
+}
+
+// packHLS 把源文件切成多码率 HLS（VOD），生成 master playlist 并返回其路径。
+// ffmpeg 的 hls 封装会把 -hls_segment_filename 原样写进 playlist，
+// 因此把工作目录切到输出目录、只传相对文件名，保证分片 URI 是相对的。
+func (s *TranscodeService) packHLS(ctx context.Context, sourcePath, videoID string) (string, error) {
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		return "", fmt.Errorf("ffmpeg not found in PATH: %w", err)
+	}
+
+	absSource, err := filepath.Abs(sourcePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve source path: %w", err)
+	}
+
+	dir := filepath.Join(s.outputDir, videoID+"_hls")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create HLS directory: %w", err)
+	}
+
+	var master strings.Builder
+	master.WriteString("#EXTM3U\n#EXT-X-VERSION:3\n")
+	for _, rendition := range hlsRenditions {
+		playlist := rendition.name + ".m3u8"
+		args := []string{
+			"-i", absSource,
+			"-c:v", "libx264",
+			"-b:v", rendition.bitrate,
+			"-maxrate", rendition.bitrate,
+			"-bufsize", rendition.bufsize,
+			"-vf", fmt.Sprintf("scale=-2:%d", rendition.height),
+			"-c:a", "aac",
+			"-b:a", rendition.audioRate,
+			"-hls_time", "4",
+			"-hls_playlist_type", "vod",
+			"-hls_segment_filename", rendition.name + "_%03d.ts",
+			"-y", playlist,
+		}
+		cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+		cmd.Dir = dir
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("ffmpeg HLS %s failed: %w, output: %s", rendition.name, err, string(output))
+		}
+		master.WriteString(fmt.Sprintf("#EXT-X-STREAM-INF:BANDWIDTH=%d\n%s\n", rendition.bandwidth, playlist))
+	}
+
+	masterPath := filepath.Join(dir, "index.m3u8")
+	if err := os.WriteFile(masterPath, []byte(master.String()), 0644); err != nil {
+		return "", fmt.Errorf("failed to write HLS master playlist: %w", err)
+	}
+
+	return masterPath, nil
 }
 
 // GetQueueStats 获取队列统计

@@ -143,6 +143,7 @@ func main() {
 	stream.Use(middleware.StreamAuthMiddleware(sessionService))
 	{
 		stream.GET("/videos/:video_id/stream", videoHandler.GetVideoStream)
+		stream.GET("/videos/:video_id/hls/:file", videoHandler.GetVideoHLS)
 	}
 
 	// Protected routes

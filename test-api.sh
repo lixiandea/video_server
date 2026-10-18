@@ -190,6 +190,49 @@ function get_video_stream() {
     fi
 }
 
+# HLS 多码率：master playlist → 一路 rendition → 一个分片
+function get_video_hls() {
+    local token=$(jq -r '.token' /tmp/login_response.json)
+    local video_id="$TEST_VIDEO_ID"
+
+    if [ -z "$video_id" ]; then
+        echo -e "${YELLOW}⚠️  No video ID available, skipping HLS test${NC}"
+        return 1
+    fi
+
+    # 分片请求无法携带 Authorization，用短时效播放令牌
+    local stream_token=$(curl -s "http://localhost:8080/api/v1/videos/$video_id/stream-token" \
+        -H "Authorization: Bearer $token" | jq -r '.token // empty')
+    if [ -z "$stream_token" ]; then
+        echo -e "${RED}❌ Failed to obtain stream token${NC}"
+        return 1
+    fi
+
+    local master=$(curl -s "http://localhost:8080/api/v1/videos/$video_id/hls/index.m3u8?token=$stream_token")
+    if ! echo "$master" | grep -q '#EXTM3U'; then
+        echo -e "${RED}❌ HLS master playlist unavailable${NC}"
+        return 1
+    fi
+
+    # 后端会给 playlist 里的相对 URI 追加 ?token=，这里直接拼回 URL
+    local rendition=$(echo "$master" | grep -v '^#' | grep -v '^$' | head -1)
+    local playlist=$(curl -s "http://localhost:8080/api/v1/videos/$video_id/hls/$rendition")
+    if ! echo "$playlist" | grep -q '#EXTINF'; then
+        echo -e "${RED}❌ HLS rendition playlist empty${NC}"
+        return 1
+    fi
+
+    local segment=$(echo "$playlist" | grep -v '^#' | grep -v '^$' | head -1)
+    local segment_status=$(curl -s -o /dev/null -w '%{http_code}' \
+        "http://localhost:8080/api/v1/videos/$video_id/hls/$segment")
+    if [ "$segment_status" != "200" ]; then
+        echo -e "${RED}❌ HLS segment failed (HTTP $segment_status)${NC}"
+        return 1
+    fi
+
+    echo -e "${CYAN}🎚️  HLS OK: master → $rendition → segment HTTP $segment_status${NC}"
+}
+
 function add_comment() {
     local token=$(jq -r '.token' /tmp/login_response.json)
     local video_id="$TEST_VIDEO_ID"
@@ -298,7 +341,7 @@ function logout_user() {
 
 # Main test execution
 echo -e "${YELLOW}Starting test sequence...${NC}"
-echo -e "${CYAN}📋 Test Plan: Health → Register → Login → Profile → Upload Video → Get Videos → Video Info → Stream → Add Comment → Get Comments → Update Comment → Get Single Comment → Logout${NC}"
+echo -e "${CYAN}📋 Test Plan: Health → Register → Login → Profile → Upload Video → Get Videos → Video Info → Stream → HLS → Add Comment → Get Comments → Update Comment → Get Single Comment → Logout${NC}"
 
 # Basic tests
 run_test "Health Check" "health_check"
@@ -311,6 +354,7 @@ run_test "Video Upload (Success)" "upload_video"
 run_test "Get User Videos (Success)" "get_user_videos"
 run_test "Get Video Info (Success)" "get_video_info"
 run_test "Get Video Stream (Success)" "get_video_stream"
+run_test "Get Video HLS (Success)" "get_video_hls"
 
 # Comment tests (with success expectation)
 run_test "Add Comment (Success)" "add_comment"

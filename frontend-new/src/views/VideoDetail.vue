@@ -22,6 +22,7 @@
               v-if="videoUrl"
               ref="playerRef"
               :src="videoUrl"
+              :mime-type="isHls ? 'application/x-mpegURL' : 'video/mp4'"
               :autoPlay="true"
               @ready="onPlayerReady"
               @error="onPlayerError"
@@ -182,6 +183,7 @@ const isOwner = computed(() => {
 })
 
 const videoUrl = ref('')
+const isHls = ref(false)
 const streamError = ref('')
 const likeCount = ref(0)
 const isLiked = ref(false)
@@ -237,7 +239,12 @@ function scheduleProcessingPoll() {
 async function loadStreamUrl() {
   try {
     const response = await videoApi.getStreamToken(videoId.value)
-    videoUrl.value = videoApi.getVideoStream(videoId.value, response.data.token)
+    const token = response.data.token
+    // 有 HLS 产物时优先多码率 HLS，否则回退到 MP4
+    isHls.value = !!currentVideo.value?.hls_available
+    videoUrl.value = isHls.value
+      ? videoApi.getVideoHls(videoId.value, token)
+      : videoApi.getVideoStream(videoId.value, token)
   } catch (err) {
     console.error('Failed to get stream token:', err)
     streamError.value = '获取播放地址失败，请重新登录后再试'
