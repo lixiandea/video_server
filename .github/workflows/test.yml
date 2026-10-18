@@ -163,6 +163,7 @@ jobs:
     - run: npm ci
     - run: npm run lint
     - run: npx vitest run
+    - run: npm audit --omit=dev --audit-level=high
 
   e2e:
     name: 前端 e2e（Playwright / Chromium）

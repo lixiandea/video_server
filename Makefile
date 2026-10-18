@@ -5,7 +5,7 @@ COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up down ps logs build check images test test-unit test-e2e test-api lint fmt frontend-dev migrate-up migrate-status migrate-down monitoring-up monitoring-check clean
+.PHONY: help up down ps logs build check images test test-unit test-e2e test-api lint fmt frontend-dev migrate-up migrate-status migrate-down monitoring-up monitoring-check security-check clean
 
 help: ## 显示所有可用目标
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -31,6 +31,10 @@ build: ## 本地编译 Go 二进制到 bin/
 
 check: ## 提交前检查（pre-commit 钩子）：后端 build + vet
 	go build ./... && go vet ./...
+
+security-check: ## 依赖漏洞巡检：govulncheck（报告）+ npm 生产依赖（门禁）
+	-go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	cd frontend-new && npm audit --omit=dev --audit-level=high
 
 test: ## 后端 build/vet/test + 前端单元测试
 	go build ./... && go vet ./... && go test ./...

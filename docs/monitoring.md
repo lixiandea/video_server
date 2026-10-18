@@ -243,6 +243,9 @@ Prometheus 触发告警后转发给 Alertmanager（`:9093`），由它按 `route
 
    > 测试告警默认 5 分钟后自动过期；也可以等它在 Alertmanager 页面消失。
 
+> 当前 `.env` 中 `ALERTMANAGER_SMTP_PASSWORD` 为空，**邮件投递尚未验证**（该步骤已按计划跳过）。
+> 需要启用时，按上面步骤填入 163 授权码并重建 Alertmanager 即可。
+
 告警邮件默认包含 `alertname`、`severity`、`summary`、`description`；恢复时也会发送
 `[RESOLVED]` 通知（`send_resolved: true`）。
 
