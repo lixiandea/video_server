@@ -28,8 +28,8 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 仍未处理：
 
 - dev 依赖（vite/vitest 体系）需要 `npm audit fix --force` 做主版本升级；
-- `go.opentelemetry.io/otel/exporters/jaeger` 已被上游弃用（当前 v1.12.0 仍可编译，
-  且 `InitTracer` 尚未在启动时调用）；后续建议改用 OTLP exporter 或移除该依赖。
+- tracing 已从弃用的 Jaeger exporter 切换到 OTLP/HTTP（`OTEL_EXPORTER_OTLP_ENDPOINT`，
+  默认 `localhost:4318`）；`InitTracer` 目前仍未在服务启动时调用。
 
 ### 前端（npm）
 

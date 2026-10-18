@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -23,12 +23,6 @@ var Tracer trace.Tracer
 
 // InitTracer initializes the OpenTelemetry tracer
 func InitTracer(serviceName string) error {
-	// Get Jaeger endpoint from environment
-	jaegerEndpoint := os.Getenv("JAEGER_ENDPOINT")
-	if jaegerEndpoint == "" {
-		jaegerEndpoint = "http://localhost:14268/api/traces"
-	}
-
 	var exporter sdktrace.SpanExporter
 	var err error
 
@@ -36,8 +30,9 @@ func InitTracer(serviceName string) error {
 	if os.Getenv("TRACING_EXPORTER") == "stdout" {
 		exporter, err = stdouttrace.New(stdouttrace.WithPrettyPrint())
 	} else {
-		// Default to Jaeger exporter
-		exporter, err = jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(jaegerEndpoint)))
+		// 默认走 OTLP/HTTP（Jaeger、Tempo、Collector 都支持）；
+		// 端点由标准环境变量 OTEL_EXPORTER_OTLP_ENDPOINT 指定（默认 localhost:4318）。
+		exporter, err = otlptracehttp.New(context.Background())
 	}
 
 	if err != nil {
