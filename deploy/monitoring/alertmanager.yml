@@ -1,0 +1,26 @@
+# Alertmanager：把 Prometheus 告警通过 163 SMTP 发到邮箱。
+#
+# 发信需要 163 的 SMTP 授权码（不是登录密码），通过 .env 的
+# ALERTMANAGER_SMTP_PASSWORD 注入；容器启动时用 sed 把 __SMTP_PASSWORD__
+# 替换成真实授权码，再交给 Alertmanager（配置文件本身不含明文密钥）。
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'smtp.163.com:465'
+  smtp_from: 'lixiandea@163.com'
+  smtp_auth_username: 'lixiandea@163.com'
+  smtp_auth_password: '__SMTP_PASSWORD__'
+  # 465 为隐式 TLS（SMTPS），不需要 STARTTLS
+  smtp_require_tls: false
+
+route:
+  receiver: email
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: email
+    email_configs:
+      - to: 'lixiandea@163.com'
+        send_resolved: true

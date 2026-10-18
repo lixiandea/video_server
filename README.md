@@ -198,6 +198,8 @@ make migrate-down       # 回滚最近 1 个版本（破坏性，详见迁移策
 - API 服务: http://localhost:8080
 - 前端: http://localhost:8000（`FRONTEND_PORT` 可覆盖）
 - Grafana: http://localhost:3301（`GRAFANA_PORT` 可覆盖）
+- Prometheus: http://localhost:9090
+- Alertmanager: http://localhost:9093（告警邮件发给 `lixiandea@163.com`）
 
 ### 统一命令入口
 
@@ -332,6 +334,7 @@ make monitoring-up
 # 访问监控界面
 # Grafana: http://localhost:3301（用户名 admin，密码见 .env 的 GRAFANA_ADMIN_PASSWORD）
 # Prometheus: http://localhost:9090
+# Alertmanager: http://localhost:9093（邮件通知需在 .env 配置 ALERTMANAGER_SMTP_PASSWORD）
 
 # 注：链路追踪代码位于 pkg/tracing，但编排中未部署 Jaeger
 ```

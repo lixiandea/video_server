@@ -183,6 +183,24 @@ services:
     networks:
       - video_network
 
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    container_name: video_server_alertmanager
+    restart: always
+    ports:
+      - "9093:9093"
+    environment:
+      - ALERTMANAGER_SMTP_PASSWORD=${ALERTMANAGER_SMTP_PASSWORD:-}
+    volumes:
+      - ./deploy/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    # 镜像没有 envsubst：启动时用 sed 把授权码写进临时配置，避免明文入库。
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'sed "s|__SMTP_PASSWORD__|$${ALERTMANAGER_SMTP_PASSWORD}|g" /etc/alertmanager/alertmanager.yml > /tmp/alertmanager.yml && exec /bin/alertmanager --config.file=/tmp/alertmanager.yml --storage.path=/alertmanager'
+    networks:
+      - video_network
+
   grafana:
     image: grafana/grafana:9.3.0
     container_name: video_server_grafana
@@ -207,6 +225,7 @@ volumes:
   redis_data:
   prometheus_data:
   grafana_data:
+  alertmanager_data:
 
 networks:
   video_network:

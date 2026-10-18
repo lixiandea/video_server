@@ -33,6 +33,14 @@
   - 自动注入trace context
   - 支持多种导出器 (Jaeger, stdout)
 
+### 4. 告警通知 (Alerting)
+- **技术栈**: Prometheus Alertmanager
+- **链路**: Prometheus 规则触发 → Alertmanager `:9093` → 163 SMTP → `lixiandea@163.com`
+- **特性**:
+  - 按 `alertname` / `severity` 分组：30s 聚合、5m 间隔、4h 重复
+  - 告警恢复通知（`send_resolved`）
+  - 规则与通知配置都在 `deploy/monitoring/`，随 compose 挂载
+
 ## 部署配置
 
 ### Docker Compose 配置
@@ -139,6 +147,7 @@ docker compose logs -f api-server
 
 - **Grafana 仪表板**: http://localhost:3301（管理员密码见 `.env` 的 `GRAFANA_ADMIN_PASSWORD`）
 - **Prometheus**: http://localhost:9090（告警页面 `/alerts`，规则页面 `/rules`）
+- **Alertmanager**: http://localhost:9093（告警分组、静默与通知状态）
 - **Jaeger 追踪**: 未包含在 `docker-compose.yml` 中；`pkg/tracing` 仅保留接入接口
 
 ### 3. 查看指标
@@ -196,9 +205,46 @@ docker run --rm --entrypoint promtool \
 
 > `transcode_queue_*` 由 api-server 每 30 秒从 Redis 采集后上报（worker 不单独暴露 `/metrics`）；
 > `db_connections_open` 由数据库连接池每 30 秒刷新。
->
-> 当前只配置了"规则触发"，没有部署 Alertmanager，因此不会主动推送通知；需要邮件/IM 通知时，
-> 接入 Alertmanager 并配置 receiver（Webhook / 邮件 / 飞书等）。
+
+## 邮件通知配置（163 SMTP）
+
+Prometheus 触发告警后转发给 Alertmanager（`:9093`），由它按 `route` 把邮件发给
+`lixiandea@163.com`。配置见
+[`deploy/monitoring/alertmanager.yml`](../deploy/monitoring/alertmanager.yml)。
+
+1. 163 邮箱 → 设置 → POP3/SMTP/IMAP → 开启 **SMTP 服务** → 获取 **授权码**（不是登录密码）。
+2. 把授权码写入 `.env`：
+
+   ```bash
+   ALERTMANAGER_SMTP_PASSWORD=<163 授权码>
+   ```
+
+3. 重建 Alertmanager（改了 `.env` 必须重建，`restart` 不会更新容器环境变量）：
+
+   ```bash
+   docker compose up -d alertmanager
+   ```
+
+   > 只修改 `alertmanager.yml` 时，`docker compose restart alertmanager` 即可
+   > （启动脚本会重新生成临时配置）。
+
+4. 发一条测试告警验证投递：
+
+   ```bash
+   docker exec video_server_alertmanager \
+     amtool alert add alertname=EmailPipelineTest severity=warning \
+     --annotation='summary="Alertmanager 邮件通道测试"' \
+     --alertmanager.url=http://localhost:9093
+   ```
+
+   Alertmanager 在 `group_wait`（30s）后尝试发送；失败时看
+   `docker compose logs --tail=100 alertmanager`。常见错误 `535 authentication failed`
+   表示授权码未填或已失效。
+
+   > 测试告警默认 5 分钟后自动过期；也可以等它在 Alertmanager 页面消失。
+
+告警邮件默认包含 `alertname`、`severity`、`summary`、`description`；恢复时也会发送
+`[RESOLVED]` 通知（`send_resolved: true`）。
 
 ## 告警 Runbook
 
@@ -326,7 +372,7 @@ du -sh logs/
 
 ## 扩展建议
 
-1. **告警通知**: 接入 Alertmanager 并把 receiver 配到邮件/IM（当前规则只负责触发）
+1. **告警通知**: 已接入 Alertmanager + 163 邮件；下一步可增加飞书/企业微信/Webhook 与静默流程
 2. **日志聚合**: 集成ELK或类似日志聚合方案
 3. **APM集成**: 考虑集成更完整的APM解决方案
 4. **自动化运维**: 基于监控数据实现自动扩缩容
