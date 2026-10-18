@@ -2,9 +2,9 @@ name: Video Server Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ master, main, develop ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ master, main, develop ]
 
 # CI 专用的一次性口令；作业级 env 里可用仓库 Secret 覆盖（见 api / e2e 作业）
 env:
