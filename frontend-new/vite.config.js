@@ -37,10 +37,14 @@ export default defineConfig(({ mode }) => {
       sourcemap: true,
       rollupOptions: {
         output: {
-          manualChunks: {
-            'video-js': ['video.js'],
-            'hls-js': ['hls.js'],
-            'vendor': ['vue', 'vue-router', 'pinia', 'axios'],
+          // Vite 8（Rolldown）只接受函数形式的 manualChunks
+          manualChunks(id) {
+            if (id.includes('node_modules/video.js')) return 'video-js'
+            if (id.includes('node_modules/hls.js')) return 'hls-js'
+            if (id.includes('node_modules/vue') ||
+                id.includes('node_modules/@vue') ||
+                id.includes('node_modules/pinia') ||
+                id.includes('node_modules/axios')) return 'vendor'
           },
         },
       },

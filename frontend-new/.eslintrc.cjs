@@ -12,7 +12,8 @@ module.exports = {
     ecmaVersion: 'latest',
     sourceType: 'module'
   },
-  extends: ['eslint:recommended', 'plugin:vue/vue3-essential'],
+  // eslint-plugin-vue 10 起，Vue 3 的配置名不再带 vue3- 前缀
+  extends: ['eslint:recommended', 'plugin:vue/essential'],
   rules: {
     // 以 _ 开头的参数/变量视为「有意未使用」（如回调占位）
     'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],

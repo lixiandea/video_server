@@ -37,6 +37,10 @@ bin/
 node_modules/
 frontend-new/dist/
 
+# Playwright artifacts
+frontend-new/test-results/
+frontend-new/playwright-report/
+
 # Runtime artifacts from uploads / transcoding (docker volume mount point)
 storage/videos/*
 storage/temp/*
