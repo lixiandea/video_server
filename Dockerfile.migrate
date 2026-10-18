@@ -1,5 +1,5 @@
 # Multi-stage build for the migration CLI (one-shot service)
-FROM golang:1.21-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
     && apk add --no-cache git

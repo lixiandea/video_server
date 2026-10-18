@@ -19,7 +19,7 @@
 - **操作系统**: Linux / macOS / Windows (WSL2)
 - **内存**: 最少 4GB RAM (推荐 8GB)
 - **磁盘**: 至少 5GB 可用空间
-- **Go 版本**: 1.21+ (仅本地开发需要)
+- **Go 版本**: 1.27+ (仅本地开发需要，`go.mod` 最低要求 1.26)
 
 ### 软件依赖
 
@@ -27,7 +27,7 @@
 |------|----------|----------|
 | Docker | 20.10+ | `docker --version` |
 | Docker Compose | 2.0+ | `docker compose version` |
-| Go (可选) | 1.21+ | `go version` |
+| Go (可选) | 1.27+ | `go version` |
 
 ### 安装 Docker
 
@@ -208,7 +208,7 @@ docker compose logs -f api-server
 ### 前置准备
 
 ```bash
-# 1. 安装 Go 1.21+
+# 1. 安装 Go 1.27+
 # 2. 安装依赖
 go mod tidy
 

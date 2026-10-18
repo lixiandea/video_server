@@ -10,19 +10,26 @@
 go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 ```
 
-2026-10-18 基线（本机 Go 1.26.5）：
+2026-10-18 升级后基线（Go 1.27.2）：
 
-- `golang.org/x/net@v0.10.0`：HTTP/2 与解析相关公告（GO-2026-6610/6611/6612/6617 等）；
-- `go.opentelemetry.io/otel/sdk@v1.12.0`：GO-2026-6616；
-- `net/http`（随 Go 工具链）：受所用 Go 版本影响。
+- 被调用代码：**0** 个漏洞（升级前 22 个）；
+- 导入包：0 个；
+- 仅剩 2 个位于依赖模块、当前代码未调用的公告（`govulncheck -show verbose` 可见）。
 
-结论：需要升级 Go 工具链与上述依赖。建议顺序：
+本次升级：
 
-1. 把 CI 的 `setup-go` 与各 Dockerfile 的 `golang` 基础镜像升到同一个受支持版本（如 1.24/1.25）；
-2. `go get -u golang.org/x/net go.opentelemetry.io/otel/...` 后 `go mod tidy`；
-3. 运行 `go build ./... && go vet ./... && go test ./...`，再做一次上传→转码→播放的集成回归。
+- 工具链：CI `setup-go` 与各 Dockerfile 统一到 Go 1.27（`go.mod` 最低要求 1.26）；
+- `golang.org/x/net v0.10.0 → v0.61.0`、`golang.org/x/crypto v0.12.0 → v0.58.0`；
+- `go.opentelemetry.io/otel* v1.12.0 → v1.47.0`；
+- `github.com/golang-jwt/jwt/v5 v5.0.0 → v5.3.1`（GO-2025-3553）。
 
-在完成升级前，`govulncheck` 作为**巡检项**（`make security-check` 不因此失败），暂不设为 CI 阻断门禁。
+`govulncheck@v1.9.0` 现已作为 CI 阻断门禁（`make security-check` 同样会失败退出）。
+
+仍未处理：
+
+- dev 依赖（vite/vitest 体系）需要 `npm audit fix --force` 做主版本升级；
+- `go.opentelemetry.io/otel/exporters/jaeger` 已被上游弃用（当前 v1.12.0 仍可编译，
+  且 `InitTracer` 尚未在启动时调用）；后续建议改用 OTLP exporter 或移除该依赖。
 
 ### 前端（npm）
 

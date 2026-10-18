@@ -1,5 +1,5 @@
 # Multi-stage build for transcode worker
-FROM golang:1.21-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 # Install git for go modules (ffmpeg is only needed at runtime, installed in the final stage)
 RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
