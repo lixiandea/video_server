@@ -4,6 +4,9 @@
 
 视频服务项目采用完整的可观测性解决方案，包含指标收集、日志管理和分布式追踪三个核心组件。
 
+> 实际编排以仓库根目录 `docker-compose.yml` 为准（Prometheus / Grafana / Alertmanager）；
+> 下文中的 Jaeger 片段为历史示例，追踪已改为 OTLP exporter 且默认未启用。
+
 ## 系统架构
 
 ```
@@ -26,10 +29,11 @@ Grafana ← 各种数据源 (数据可视化)
 - 多种数据源支持
 - 告警功能
 
-### 3. Jaeger - 分布式追踪
+### 3. 链路追踪 - OTLP（默认不部署）
 - 端到端请求追踪
 - 性能瓶颈分析
 - 服务依赖关系可视化
+- 通过 `OTEL_EXPORTER_OTLP_ENDPOINT` 接入 Jaeger / Tempo / Collector
 
 ## 部署配置
 

@@ -687,6 +687,6 @@ func (al *JobAuditLogger) LogJobRetry(job *Job, attempt int, delay time.Duration
 
 ## 下一步
 
-- [Worker部署指南](../worker/deployment.md)
+- [转码 Worker 架构](../../../README.md)
 - [API Server配置](../api-server/deployment.md)
 - [基础设施监控](../../infrastructure/monitoring/README.md)

@@ -730,5 +730,5 @@ go tool pprof http://localhost:8080/debug/pprof/block
 ## 下一步
 
 - [Scheduler部署指南](../scheduler/deployment.md)
-- [Worker处理逻辑](../worker/deployment.md)
+- [转码 Worker 架构](../../../README.md)
 - [基础设施监控](../../infrastructure/monitoring/README.md)

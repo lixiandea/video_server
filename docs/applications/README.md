@@ -520,7 +520,7 @@ curl http://localhost:8080/debug/pprof/goroutine?debug=2
 ## 下一步
 
 - [API Server详细部署](./api-server/deployment.md)
-- [Scheduler任务配置](./scheduler/jobs.md)
-- [Worker处理逻辑](./worker/processing.md)
-- [前端部署指南](./frontend/deployment.md)
+- [Scheduler部署指南](./scheduler/deployment.md)
+- [转码 Worker 架构](../../README.md)
+- [前端部署指南](../../frontend-new/DEPLOYMENT_GUIDE.md)
 - [基础设施部署](../infrastructure/README.md)

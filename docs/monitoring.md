@@ -26,12 +26,12 @@
   - 数据库指标 (连接数、查询统计、查询耗时)
 
 ### 3. 链路追踪 (Tracing)
-- **技术栈**: OpenTelemetry + Jaeger
+- **技术栈**: OpenTelemetry（OTLP/HTTP；可接 Jaeger / Tempo / Collector，默认未部署采集端）
 - **特性**:
   - 分布式追踪
   - 跨服务调用跟踪
   - 自动注入trace context
-  - 支持多种导出器 (Jaeger, stdout)
+  - 支持 OTLP 与 stdout 导出器（`TRACING_EXPORTER=stdout` 切到标准输出）
 
 ### 4. 告警通知 (Alerting)
 - **技术栈**: Prometheus Alertmanager
@@ -44,6 +44,9 @@
 ## 部署配置
 
 ### Docker Compose 配置
+
+> 以下为示例片段；实际编排以仓库根目录 `docker-compose.yml` 为准
+> （含 Prometheus / Grafana / Alertmanager，未部署 Jaeger）。
 
 ```yaml
 version: '3.8'
@@ -351,8 +354,8 @@ tracing.RecordError(ctx, err)
    - 确认防火墙规则允许相应端口
 
 2. **追踪数据缺失**
-   - 验证Jaeger服务是否正常运行
-   - 检查JAEGER_ENDPOINT环境变量配置
+   - 确认已按需调用 `tracing.InitTracer`（默认未启用）
+   - 检查 OTLP collector 是否可达（`OTEL_EXPORTER_OTLP_ENDPOINT`，默认 `localhost:4318`）
 
 3. **日志文件过大**
    - 配置日志轮转策略
