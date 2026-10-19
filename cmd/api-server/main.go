@@ -116,6 +116,7 @@ func main() {
 	r.Use(middleware.ErrorLoggingMiddleware())
 	r.Use(middleware.RateLimitMiddleware()) // Add rate limiting
 	r.Use(metrics.MetricsMiddleware())
+	r.Use(middleware.AuditMiddleware()) // 写操作审计（只记元数据）
 	r.Use(gin.Recovery())
 
 	// Health check endpoint

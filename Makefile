@@ -5,7 +5,7 @@ COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up down ps logs build check images test test-unit test-e2e test-api lint fmt frontend-dev migrate-up migrate-status migrate-down monitoring-up monitoring-check security-check clean
+.PHONY: help up down ps logs build check images test test-unit test-e2e test-api load-test lint fmt frontend-dev migrate-up migrate-status migrate-down monitoring-up monitoring-check security-check clean
 
 help: ## 显示所有可用目标
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -48,6 +48,9 @@ test-e2e: ## 前端 e2e（需 :8080 API 与 :3000 前端开发服务器）
 
 test-api: ## 对运行中的服务执行 API 集成测试
 	./test-api.sh
+
+load-test: ## 转码链路压测（UPLOADS=10 CONCURRENCY=4）
+	./scripts/load-test.sh
 
 lint: ## 前端 ESLint
 	cd frontend-new && npm run lint

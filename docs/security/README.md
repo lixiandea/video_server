@@ -86,3 +86,18 @@ docker compose run --rm migrate check
 - [ ] 对外暴露 `/metrics` 时配置 `METRICS_TOKEN`
 - [ ] 生产环境 CORS 白名单不包含 `*`
 - [ ] 业务数据库账号不使用 root，并遵循最小权限
+
+## 4. 审计日志
+
+- 写操作（POST / PUT / PATCH / DELETE）由 `AuditMiddleware` 记录为结构化 JSON 事件：
+  `audit=true`、`request_id`、`method`、`route`、`path`、`status`、`latency_ms`、
+  `remote_addr`、`user_id`（已鉴权时）。
+- 只记录请求元数据，不记录请求体，避免口令、令牌等敏感信息落日志。
+- 事件写到服务 stdout，由 `docker logs` 收集：
+
+  ```bash
+  docker logs video_server_api 2>&1 | grep '"audit":true' | tail -50
+  ```
+
+- 经过 nginx 反向代理时 `remote_addr` 是代理地址；当前刻意不信任 `X-Forwarded-For`
+  （与 `/metrics` 的判定一致），如需真实客户端 IP，应在受信代理后统一解析。
