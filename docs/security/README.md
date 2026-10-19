@@ -89,14 +89,24 @@ docker compose run --rm migrate check
 
 ## 4. 审计日志
 
-- 写操作（POST / PUT / PATCH / DELETE）由 `AuditMiddleware` 记录为结构化 JSON 事件：
-  `audit=true`、`request_id`、`method`、`route`、`path`、`status`、`latency_ms`、
-  `remote_addr`、`user_id`（已鉴权时）。
+- 写操作（POST / PUT / PATCH / DELETE）由 `AuditMiddleware` 产出审计事件，字段：
+  `request_id`、`user_id`（已鉴权时）、`method`、`route`、`path`、`status`、
+  `latency_ms`、`remote_addr`、`error_message`。
 - 只记录请求元数据，不记录请求体，避免口令、令牌等敏感信息落日志。
-- 事件写到服务 stdout，由 `docker logs` 收集：
+- 两条出口：
+  - **stdout**：`docker logs video_server_api 2>&1 | grep '"audit":true' | tail -50`；
+  - **数据库**：`audit_logs` 表（迁移 `0004_create_audit_logs`），由 `AuditService`
+    异步写入（缓冲 1024 条，队列满时丢弃并告警，不阻塞请求）。
+- 保留期由 `AUDIT_RETENTION_DAYS` 控制（默认 30 天）：scheduler 启动时与每小时执行
+  `DELETE FROM audit_logs WHERE created_at < cutoff`，修改 `.env` 后重建 scheduler 生效。
+- 常用查询：
 
   ```bash
-  docker logs video_server_api 2>&1 | grep '"audit":true' | tail -50
+  docker exec -i video_server_mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" video_server <<'SQL'
+  SELECT created_at, user_id, method, route, status, latency_ms, remote_addr
+  FROM audit_logs ORDER BY id DESC LIMIT 20;
+  SELECT route, COUNT(*) FROM audit_logs WHERE status >= 400 GROUP BY route;
+  SQL
   ```
 
 - 经过 nginx 反向代理时 `remote_addr` 是代理地址；当前刻意不信任 `X-Forwarded-For`

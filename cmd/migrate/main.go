@@ -184,6 +184,7 @@ func runCheck(cfg *config.Config) error {
 		&models.Comment{},
 		&models.Session{},
 		&models.VideoDeletionRecord{},
+		&models.AuditLog{},
 	}
 	issues, err := database.CheckModelSchema(db, modelsToCheck...)
 	if err != nil {

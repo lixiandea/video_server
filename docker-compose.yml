@@ -109,6 +109,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - DB_NAME=video_server
       - METRICS_TOKEN=${METRICS_TOKEN:-}
+      - AUDIT_RETENTION_DAYS=${AUDIT_RETENTION_DAYS:-30}
       - STORAGE_VIDEO_DIR=/app/storage/videos
       - STORAGE_TEMP_DIR=/app/storage/temp
     volumes:

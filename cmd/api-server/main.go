@@ -105,6 +105,12 @@ func main() {
 		})
 	}
 
+	// 审计日志：异步落库，避免写请求阻塞在数据库上
+	auditService := services.NewAuditService(database.GetDB())
+	auditCtx, stopAudit := context.WithCancel(context.Background())
+	defer stopAudit()
+	auditService.Start(auditCtx)
+
 	// Setup routes
 	r := gin.New()
 	r.MaxMultipartMemory = 8 << 20 // 8 MB，其余部分落盘，避免大文件常驻内存
@@ -116,7 +122,7 @@ func main() {
 	r.Use(middleware.ErrorLoggingMiddleware())
 	r.Use(middleware.RateLimitMiddleware()) // Add rate limiting
 	r.Use(metrics.MetricsMiddleware())
-	r.Use(middleware.AuditMiddleware()) // 写操作审计（只记元数据）
+	r.Use(middleware.AuditMiddleware(auditService)) // 写操作审计（异步落库）
 	r.Use(gin.Recovery())
 
 	// Health check endpoint

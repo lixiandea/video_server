@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lixiandea/video_server/internal/models"
 	"github.com/lixiandea/video_server/pkg/logging"
 	"go.uber.org/zap"
 )
@@ -17,9 +18,14 @@ var auditMethods = map[string]struct{}{
 	http.MethodDelete: {},
 }
 
+// AuditSink 接收审计事件（由异步落库实现）。
+type AuditSink interface {
+	Record(models.AuditLog)
+}
+
 // AuditMiddleware 把写操作记录为结构化审计事件（谁、做了什么、结果、耗时）。
 // 只记录请求元数据，不记录请求体，避免口令等敏感信息落日志。
-func AuditMiddleware() gin.HandlerFunc {
+func AuditMiddleware(sink AuditSink) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if _, ok := auditMethods[c.Request.Method]; !ok {
 			c.Next()
@@ -29,23 +35,45 @@ func AuditMiddleware() gin.HandlerFunc {
 		start := time.Now()
 		c.Next()
 
-		fields := []zap.Field{
-			zap.Bool("audit", true),
-			zap.String("method", c.Request.Method),
-			zap.String("route", c.FullPath()),
-			zap.String("path", c.Request.URL.Path),
-			zap.Int("status", c.Writer.Status()),
-			zap.Int64("latency_ms", time.Since(start).Milliseconds()),
-			zap.String("remote_addr", c.Request.RemoteAddr),
-		}
-		if requestID := GetRequestID(c); requestID != "" {
-			fields = append(fields, zap.String("request_id", requestID))
+		entry := models.AuditLog{
+			RequestID:  GetRequestID(c),
+			Method:     c.Request.Method,
+			Route:      c.FullPath(),
+			Path:       c.Request.URL.Path,
+			Status:     c.Writer.Status(),
+			LatencyMs:  time.Since(start).Milliseconds(),
+			RemoteAddr: c.Request.RemoteAddr,
 		}
 		if userID, ok := c.Get("user_id"); ok {
-			fields = append(fields, zap.Any("user_id", userID))
+			if id, ok := userID.(uint); ok {
+				entry.UserID = &id
+			}
 		}
 		if len(c.Errors) > 0 {
-			fields = append(fields, zap.String("error", c.Errors.String()))
+			entry.ErrorMessage = c.Errors.String()
+		}
+
+		if sink != nil {
+			sink.Record(entry)
+		}
+
+		fields := []zap.Field{
+			zap.Bool("audit", true),
+			zap.String("method", entry.Method),
+			zap.String("route", entry.Route),
+			zap.String("path", entry.Path),
+			zap.Int("status", entry.Status),
+			zap.Int64("latency_ms", entry.LatencyMs),
+			zap.String("remote_addr", entry.RemoteAddr),
+		}
+		if entry.RequestID != "" {
+			fields = append(fields, zap.String("request_id", entry.RequestID))
+		}
+		if entry.UserID != nil {
+			fields = append(fields, zap.Uint("user_id", *entry.UserID))
+		}
+		if entry.ErrorMessage != "" {
+			fields = append(fields, zap.String("error", entry.ErrorMessage))
 		}
 
 		logging.GetLogger().Info("audit event", fields...)

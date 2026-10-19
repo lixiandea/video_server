@@ -71,3 +71,18 @@ type VideoDeletionRecord struct {
 	VideoUUID string `gorm:"uniqueIndex;not null;type:varchar(255)" json:"video_uuid"`
 	Reason    string `json:"reason,omitempty"`
 }
+
+// AuditLog 记录写操作的审计事件（只追加，不更新）。
+type AuditLog struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	RequestID    string    `gorm:"type:varchar(64);default:''" json:"request_id"`
+	UserID       *uint     `gorm:"index" json:"user_id"`
+	Method       string    `gorm:"type:varchar(10);not null" json:"method"`
+	Route        string    `gorm:"type:varchar(255);default:''" json:"route"`
+	Path         string    `gorm:"type:varchar(512);default:''" json:"path"`
+	Status       int       `gorm:"not null" json:"status"`
+	LatencyMs    int64     `gorm:"not null;default:0" json:"latency_ms"`
+	RemoteAddr   string    `gorm:"type:varchar(128);default:''" json:"remote_addr"`
+	ErrorMessage string    `gorm:"column:error_message;type:varchar(512);default:''" json:"error"`
+}

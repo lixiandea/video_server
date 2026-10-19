@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"log"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,9 +38,10 @@ func main() {
 
 	// Initialize services
 	videoService := services.NewVideoService()
+	auditService := services.NewAuditService(database.GetDB())
 
 	// Start cleanup worker
-	go startCleanupWorker(videoService, storageService)
+	go startCleanupWorker(videoService, storageService, auditService)
 
 	// Setup basic API for health checks and manual triggers
 	r := gin.Default()
@@ -52,7 +56,7 @@ func main() {
 	metrics.RegisterMetricsEndpoint(r, cfg.Server.MetricsToken)
 
 	r.POST("/cleanup", func(c *gin.Context) {
-		performCleanup(videoService, storageService)
+		performCleanup(videoService, storageService, auditService)
 		c.JSON(200, gin.H{"status": "cleanup initiated"})
 	})
 
@@ -110,8 +114,11 @@ func loadSchedulerConfig() *config.Config {
 	return &config
 }
 
-func startCleanupWorker(videoService *services.VideoService, storageService *storage.StorageService) {
+func startCleanupWorker(videoService *services.VideoService, storageService *storage.StorageService, auditService *services.AuditService) {
 	log.Println("Starting cleanup worker...")
+
+	// 启动时先跑一次，让审计保留期在重启后立即生效；之后每小时一次
+	performCleanup(videoService, storageService, auditService)
 
 	// Run cleanup every hour
 	ticker := time.NewTicker(1 * time.Hour)
@@ -121,13 +128,23 @@ func startCleanupWorker(videoService *services.VideoService, storageService *sto
 		select {
 		case <-ticker.C:
 			log.Println("Running scheduled cleanup...")
-			performCleanup(videoService, storageService)
+			performCleanup(videoService, storageService, auditService)
 		}
 	}
 }
 
-func performCleanup(videoService *services.VideoService, storageService *storage.StorageService) {
+func performCleanup(videoService *services.VideoService, storageService *storage.StorageService, auditService *services.AuditService) {
 	log.Println("Starting cleanup process...")
+
+	// 审计日志按保留期清理
+	retentionDays := auditRetentionDays()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if removed, err := auditService.CleanupOlderThan(ctx, time.Now().AddDate(0, 0, -retentionDays)); err != nil {
+		log.Printf("Error cleaning audit logs: %v", err)
+	} else if removed > 0 {
+		log.Printf("Removed %d old audit logs (retention %d days)", removed, retentionDays)
+	}
+	cancel()
 
 	// Get videos marked for deletion
 	records, err := videoService.GetDeletionRecords(50) // Process up to 50 at a time
@@ -155,4 +172,14 @@ func performCleanup(videoService *services.VideoService, storageService *storage
 	}
 
 	log.Println("Cleanup process completed.")
+}
+
+// auditRetentionDays 读取 AUDIT_RETENTION_DAYS（默认 30 天）。
+func auditRetentionDays() int {
+	if v := os.Getenv("AUDIT_RETENTION_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 30
 }

@@ -9,8 +9,17 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lixiandea/video_server/internal/models"
 	"github.com/lixiandea/video_server/pkg/logging"
 )
+
+type fakeAuditSink struct {
+	entries []models.AuditLog
+}
+
+func (f *fakeAuditSink) Record(entry models.AuditLog) {
+	f.entries = append(f.entries, entry)
+}
 
 func TestAuditMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -20,8 +29,9 @@ func TestAuditMiddleware(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = logging.Sync() })
 
+	sink := &fakeAuditSink{}
 	r := gin.New()
-	r.Use(AuditMiddleware())
+	r.Use(AuditMiddleware(sink))
 	r.POST("/api/v1/videos/:video_id/like", func(c *gin.Context) {
 		c.Set("user_id", uint(7))
 		c.Status(http.StatusNoContent)
@@ -53,5 +63,14 @@ func TestAuditMiddleware(t *testing.T) {
 	}
 	if strings.Contains(out, `"method":"GET"`) {
 		t.Errorf("GET 请求不应产生审计事件:\n%s", out)
+	}
+
+	if len(sink.entries) != 1 {
+		t.Fatalf("期望 1 条审计记录，实际 %d", len(sink.entries))
+	}
+	entry := sink.entries[0]
+	if entry.Method != http.MethodPost || entry.Route != "/api/v1/videos/:video_id/like" ||
+		entry.Status != http.StatusNoContent || entry.UserID == nil || *entry.UserID != 7 {
+		t.Fatalf("审计记录字段不正确: %+v", entry)
 	}
 }
