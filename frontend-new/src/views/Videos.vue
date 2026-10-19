@@ -42,7 +42,14 @@
         >
           <div class="card h-100 video-card" @click="goToVideo(video.video_id)">
             <div class="video-thumb">
-              <img v-if="video.cover_url" :src="video.cover_url" :alt="video.name" loading="lazy">
+              <img
+                v-if="video.cover_url"
+                :src="video.cover_url + '?size=320'"
+                :srcset="`${video.cover_url}?size=320 320w, ${video.cover_url}?size=720 720w`"
+                sizes="(max-width: 768px) 50vw, 33vw"
+                :alt="video.name"
+                loading="lazy"
+              >
               <i v-else class="bi bi-film"></i>
               <span v-if="video.duration" class="video-duration">{{ formatDuration(video.duration) }}</span>
             </div>

@@ -272,11 +272,48 @@ func (s *TranscodeService) extractMetadata(outputPath string, updates map[string
 		return
 	}
 	updates["cover_path"] = coverPath
+	for _, width := range coverVariantWidths {
+		variant := CoverVariantPath(coverPath, width)
+		if err := scaleCover(coverPath, variant, width); err != nil {
+			logger.Warn("Failed to generate cover variant",
+				zap.String("path", variant),
+				zap.Int("width", width),
+				zap.Error(err))
+		}
+	}
 }
 
 // coverPathFor 封面与转码产物放在同一目录，命名为 <产物名>_cover.jpg。
 func coverPathFor(outputPath string) string {
 	return strings.TrimSuffix(outputPath, filepath.Ext(outputPath)) + "_cover.jpg"
+}
+
+// coverVariantWidths 是多分辨率封面的宽度档位（与接口 ?size= 的取值一致）。
+var coverVariantWidths = []int{320, 720}
+
+// CoverVariantPath 返回封面指定宽度的变体路径（命名约定与转码侧一致）。
+func CoverVariantPath(coverPath string, width int) string {
+	return fmt.Sprintf("%s_%dw.jpg", strings.TrimSuffix(coverPath, filepath.Ext(coverPath)), width)
+}
+
+// scaleCover 把已有封面缩放成指定宽度的 JPEG。
+func scaleCover(src, dst string, width int) error {
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		return fmt.Errorf("ffmpeg not found in PATH: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	out, err := exec.CommandContext(ctx, ffmpegPath,
+		"-y", "-i", src,
+		"-vf", fmt.Sprintf("scale=%d:-2", width),
+		"-q:v", "3", dst).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ffmpeg scale failed: %w, output: %s", err, string(out))
+	}
+	return nil
 }
 
 // probeDuration 用 ffprobe 读取时长（秒）。ffprobe 缺失或输出异常时返回错误。

@@ -295,6 +295,7 @@ storage:
 | GET | `/api/v1/videos/{id}` | 获取视频信息 | ✅ |
 | GET | `/api/v1/videos/{id}/stream` | 流式播放视频 | ✅ |
 | GET | `/api/v1/videos/{id}/hls/{file}` | 多码率 HLS 播放列表/分片（`?token=`） | ✅ |
+| GET | `/api/v1/videos/{id}/cover` | 视频封面（`?size=320/720`，公开） | ❌ |
 | GET | `/api/v1/users/videos` | 获取用户视频列表 | ✅ |
 | DELETE | `/api/v1/videos/{id}` | 删除视频 | ✅ |
 

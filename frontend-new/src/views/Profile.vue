@@ -86,7 +86,14 @@
                 <div v-for="video in myVideos" :key="video.video_id" class="col-6 col-md-4">
                   <div class="card video-card" @click="goToVideo(video.video_id)">
                     <div class="video-thumb position-relative">
-                      <img v-if="video.cover_url" :src="video.cover_url" :alt="video.name" loading="lazy">
+                      <img
+                        v-if="video.cover_url"
+                        :src="video.cover_url + '?size=320'"
+                        :srcset="`${video.cover_url}?size=320 320w, ${video.cover_url}?size=720 720w`"
+                        sizes="(max-width: 768px) 50vw, 33vw"
+                        :alt="video.name"
+                        loading="lazy"
+                      >
                       <i v-else class="bi bi-film"></i>
                       <span v-if="statusLabel(video.status)" class="badge bg-secondary position-absolute top-0 start-0 m-1">
                         {{ statusLabel(video.status) }}

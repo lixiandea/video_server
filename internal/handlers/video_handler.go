@@ -332,7 +332,16 @@ func (h *VideoHandler) GetVideoCover(c *gin.Context) {
 	}
 
 	// 与播放路径一致：库中可能是别处写入的绝对路径，这里只取文件名重新拼接。
-	coverPath := h.storageService.GetVideoPath(filepath.Base(video.CoverPath))
+	coverName := filepath.Base(video.CoverPath)
+	// ?size=320/720 命中已生成的变体时优先使用，否则回退原图。
+	if width, ok := coverSizeWidths[c.Query("size")]; ok {
+		variant := filepath.Base(services.CoverVariantPath(video.CoverPath, width))
+		if _, err := os.Stat(h.storageService.GetVideoPath(variant)); err == nil {
+			coverName = variant
+		}
+	}
+
+	coverPath := h.storageService.GetVideoPath(coverName)
 	if _, err := os.Stat(coverPath); err != nil {
 		utils.Fail(c, http.StatusNotFound, "Cover not found")
 		return
@@ -341,6 +350,12 @@ func (h *VideoHandler) GetVideoCover(c *gin.Context) {
 	// 封面内容由 UUID 决定，可放心让浏览器缓存
 	c.Header("Cache-Control", "public, max-age=3600")
 	c.File(coverPath)
+}
+
+// coverSizeWidths 允许通过 ?size= 请求的封面宽度；未知取值回退原图。
+var coverSizeWidths = map[string]int{
+	"320": 320,
+	"720": 720,
 }
 
 // parsePagination 统一解析 page/limit 查询参数，limit 上限 100。

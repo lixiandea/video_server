@@ -233,6 +233,23 @@ function get_video_hls() {
     echo -e "${CYAN}🎚️  HLS OK: master → $rendition → segment HTTP $segment_status${NC}"
 }
 
+# 封面：原图与 ?size=320/720 变体都应可访问（公开接口）
+function get_video_cover() {
+    local video_id="$TEST_VIDEO_ID"
+
+    if [ -z "$video_id" ]; then
+        echo -e "${YELLOW}⚠️  No video ID available, skipping cover test${NC}"
+        return 1
+    fi
+
+    local full=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080/api/v1/videos/$video_id/cover")
+    local small=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080/api/v1/videos/$video_id/cover?size=320")
+    local medium=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080/api/v1/videos/$video_id/cover?size=720")
+    echo -e "${CYAN}🖼️  Cover: full=$full 320=$small 720=$medium${NC}"
+
+    [ "$full" = "200" ] && [ "$small" = "200" ] && [ "$medium" = "200" ]
+}
+
 function add_comment() {
     local token=$(jq -r '.token' /tmp/login_response.json)
     local video_id="$TEST_VIDEO_ID"
@@ -341,7 +358,7 @@ function logout_user() {
 
 # Main test execution
 echo -e "${YELLOW}Starting test sequence...${NC}"
-echo -e "${CYAN}📋 Test Plan: Health → Register → Login → Profile → Upload Video → Get Videos → Video Info → Stream → HLS → Add Comment → Get Comments → Update Comment → Get Single Comment → Logout${NC}"
+echo -e "${CYAN}📋 Test Plan: Health → Register → Login → Profile → Upload Video → Get Videos → Video Info → Stream → HLS → Cover → Add Comment → Get Comments → Update Comment → Get Single Comment → Logout${NC}"
 
 # Basic tests
 run_test "Health Check" "health_check"
@@ -355,6 +372,7 @@ run_test "Get User Videos (Success)" "get_user_videos"
 run_test "Get Video Info (Success)" "get_video_info"
 run_test "Get Video Stream (Success)" "get_video_stream"
 run_test "Get Video HLS (Success)" "get_video_hls"
+run_test "Get Video Cover (Success)" "get_video_cover"
 
 # Comment tests (with success expectation)
 run_test "Add Comment (Success)" "add_comment"
