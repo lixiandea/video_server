@@ -15,7 +15,7 @@
 | eslint | 10.13.0 | 10.13.0 | 已升级（flat config） |
 | eslint-plugin-vue | 10.11.1 | 10.11.1 | 已升级，兼容 eslint 8/9/10 |
 | pinia | 4.1.0 | 4.1.0 | 已升级 |
-| vue-router | 4.6.4 | **5.4.0** | 待升级（peer 要求 pinia 3/4） |
+| vue-router | 5.4.0 | 5.4.0 | 已升级 |
 | video.js | 8.24.2 | **10.1.0** | 待升级（播放器核心） |
 
 `npm audit` 已为 0；本规划只做主版本对齐，不包含安全修复。
@@ -84,4 +84,6 @@
 - 2026-10-19：**阶段 A 完成**——eslint 10 + flat config（`eslint.config.js` + `@eslint/js` + `globals`），
   删除 `.eslintrc.cjs`；`npm run lint` 0 problem，build / Vitest 22 / e2e 19 全部通过。
 - 2026-10-19：**阶段 B 完成**——pinia 2.3.1 → 4.1.0；store 为 setup 风格，无需改代码；
+  已用新镜像重跑 e2e 19/19。
+- 2026-10-19：**阶段 C 完成**——vue-router 4.6.4 → 5.4.0；路由 API 与守卫无需改代码；
   已用新镜像重跑 e2e 19/19。
