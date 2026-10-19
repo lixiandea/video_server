@@ -176,7 +176,7 @@ async function loadProfile() {
     profile.username = data.username || ''
     profile.email = data.email || ''
     profile.bio = data.bio || ''
-  } catch (err) {
+  } catch {
     error.value = '加载个人信息失败'
   }
 }

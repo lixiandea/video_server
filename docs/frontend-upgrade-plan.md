@@ -12,7 +12,7 @@
 | @playwright/test | 1.64.1 | 1.64.1 | 已升级 |
 | sass | 1.105.2 | 1.105.2 | 已升级 |
 | hls.js | 1.7.3 | 1.7.3 | 已是最新；当前代码未直接引用 |
-| eslint | 8.57.1 | **10.13.0** | 待升级（flat config） |
+| eslint | 10.13.0 | 10.13.0 | 已升级（flat config） |
 | eslint-plugin-vue | 10.11.1 | 10.11.1 | 已升级，兼容 eslint 8/9/10 |
 | pinia | 2.3.1 | **4.1.0** | 待升级 |
 | vue-router | 4.6.4 | **5.4.0** | 待升级（peer 要求 pinia 3/4） |
@@ -78,3 +78,8 @@
 
 - 阶段 A/B/C 各约 0.5–1 天（含回归）；
 - 阶段 D 约 1–2 天（以播放器手工验证为主）。
+
+## 6. 进度
+
+- 2026-10-19：**阶段 A 完成**——eslint 10 + flat config（`eslint.config.js` + `@eslint/js` + `globals`），
+  删除 `.eslintrc.cjs`；`npm run lint` 0 problem，build / Vitest 22 / e2e 19 全部通过。
