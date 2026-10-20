@@ -2,16 +2,20 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/lixiandea/video_server/internal/models"
 	"github.com/lixiandea/video_server/pkg/database"
 	apperrors "github.com/lixiandea/video_server/pkg/errors"
+	"github.com/lixiandea/video_server/pkg/queue"
 	"github.com/lixiandea/video_server/pkg/redis"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -43,7 +47,7 @@ func (s *VideoService) invalidateVideoCache(videoID string) {
 	_ = s.cache.Delete(context.Background(), videoCacheKey(videoID))
 }
 
-func (s *VideoService) CreateVideo(authorID uint, name string) (*models.Video, error) {
+func (s *VideoService) CreateVideo(authorID uint, name string, size, videoQuota, storageQuota int64, dailyLimit int) (*models.Video, error) {
 	videoUUID := uuid.New().String()
 	ctime := time.Now().Format("Jan 02 2006, 15:04:05")
 
@@ -55,12 +59,217 @@ func (s *VideoService) CreateVideo(authorID uint, name string) (*models.Video, e
 		Status:       "processing",
 	}
 
-	result := s.db.Create(video)
-	if result.Error != nil {
-		return nil, fmt.Errorf("failed to create video: %w", result.Error)
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var user models.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, authorID).Error; err != nil {
+			return fmt.Errorf("failed to lock upload owner: %w", err)
+		}
+
+		var count int64
+		if err := tx.Model(&models.Video{}).
+			Where("author_id = ? AND status <> ?", authorID, "deleted").
+			Count(&count).Error; err != nil {
+			return fmt.Errorf("failed to count user videos: %w", err)
+		}
+		if videoQuota > 0 && count >= videoQuota {
+			return apperrors.NewAppError(http.StatusForbidden, "video quota exceeded", nil)
+		}
+
+		var usedBytes int64
+		if err := tx.Model(&models.Video{}).
+			Select("COALESCE(SUM(size), 0)").
+			Where("author_id = ? AND status <> ?", authorID, "deleted").
+			Scan(&usedBytes).Error; err != nil {
+			return fmt.Errorf("failed to calculate storage usage: %w", err)
+		}
+		if storageQuota > 0 && usedBytes+size > storageQuota {
+			return apperrors.NewAppError(http.StatusForbidden, "storage quota exceeded", nil)
+		}
+
+		if dailyLimit > 0 {
+			var recent int64
+			if err := tx.Model(&models.Video{}).
+				Where("author_id = ? AND created_at >= ?", authorID, time.Now().Add(-24*time.Hour)).
+				Count(&recent).Error; err != nil {
+				return fmt.Errorf("failed to count recent uploads: %w", err)
+			}
+			if recent >= int64(dailyLimit) {
+				return apperrors.NewAppError(http.StatusTooManyRequests, "daily upload limit exceeded", nil)
+			}
+		}
+
+		if err := tx.Create(video).Error; err != nil {
+			return fmt.Errorf("failed to create video: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return video, nil
+}
+
+// ReviewVideo 对转码完成、等待审核的视频做一次性状态决策。
+func (s *VideoService) ReviewVideo(videoID string, adminID uint, decision, note string) error {
+	status := ""
+	switch decision {
+	case "approve":
+		status = "active"
+	case "reject":
+		status = "rejected"
+	default:
+		return apperrors.BadRequestf("decision must be approve or reject")
+	}
+	if strings.TrimSpace(note) == "" && decision == "reject" {
+		return apperrors.BadRequestf("rejection reason is required")
+	}
+
+	now := time.Now()
+	result := s.db.Model(&models.Video{}).
+		Where("uuid = ? AND status = ?", videoID, "pending_review").
+		Updates(map[string]interface{}{
+			"status":      status,
+			"reviewed_by": adminID,
+			"reviewed_at": now,
+			"review_note": strings.TrimSpace(note),
+		})
+	if result.Error != nil {
+		return fmt.Errorf("failed to review video: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return apperrors.NotFoundf("pending review video not found")
+	}
+	s.invalidateVideoCache(videoID)
+	return nil
+}
+
+func (s *VideoService) GetVideosForReview(status string, limit, offset int) ([]*models.Video, int64, error) {
+	if status == "" {
+		status = "pending_review"
+	}
+	var videos []*models.Video
+	var total int64
+	base := func() *gorm.DB {
+		return s.db.Model(&models.Video{}).Where("status = ?", status)
+	}
+	if err := base().Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count review videos: %w", err)
+	}
+	if err := base().Order("created_at ASC").Limit(limit).Offset(offset).Find(&videos).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to list review videos: %w", err)
+	}
+	return videos, total, nil
+}
+
+func (s *VideoService) SaveTranscodeTask(task *queue.TranscodeTask) error {
+	payload, err := json.Marshal(task)
+	if err != nil {
+		return fmt.Errorf("failed to encode transcode task: %w", err)
+	}
+	record := &models.TranscodeTaskRecord{
+		TaskID:  task.TaskID,
+		VideoID: task.VideoID,
+		Status:  string(task.Status),
+		Payload: string(payload),
+		Retries: task.Retries,
+	}
+	result := s.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "task_id"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"status":        record.Status,
+			"payload":       record.Payload,
+			"retries":       record.Retries,
+			"error_message": task.Error,
+			"started_at":    task.StartedAt,
+			"completed_at":  task.CompletedAt,
+			"updated_at":    time.Now(),
+		}),
+	}).Create(record)
+	if result.Error != nil {
+		return fmt.Errorf("failed to persist transcode task: %w", result.Error)
+	}
+	return nil
+}
+
+func (s *VideoService) LoadRecoverableTranscodeTasks(cutoff time.Time, limit int) ([]*queue.TranscodeTask, error) {
+	var records []models.TranscodeTaskRecord
+	if err := s.db.Where("status IN ? AND updated_at < ?", []string{"pending", "processing"}, cutoff).
+		Order("updated_at ASC").Limit(limit).Find(&records).Error; err != nil {
+		return nil, fmt.Errorf("failed to load recoverable transcode tasks: %w", err)
+	}
+	tasks := make([]*queue.TranscodeTask, 0, len(records))
+	for _, record := range records {
+		var task queue.TranscodeTask
+		if err := json.Unmarshal([]byte(record.Payload), &task); err != nil {
+			continue
+		}
+		task.MessageID = ""
+		task.Status = queue.TaskStatusPending
+		task.StartedAt = nil
+		tasks = append(tasks, &task)
+	}
+	return tasks, nil
+}
+
+func (s *VideoService) GetVideosNeedingReplication(limit int) ([]*models.Video, error) {
+	var videos []*models.Video
+	result := s.db.Where("status = ? AND (assets_replicated_at IS NULL OR assets_replicated_at < ?)",
+		"active", time.Now().Add(-5*time.Minute)).
+		Order("assets_replicated_at ASC").
+		Limit(limit).
+		Find(&videos)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to load videos needing replication: %w", result.Error)
+	}
+	return videos, nil
+}
+
+func (s *VideoService) MarkAssetsReplicated(videoID string) error {
+	result := s.db.Model(&models.Video{}).
+		Where("uuid = ?", videoID).
+		Update("assets_replicated_at", time.Now())
+	if result.Error != nil {
+		return fmt.Errorf("failed to mark assets replicated: %w", result.Error)
+	}
+	return nil
+}
+
+func (s *VideoService) CountPendingReview() (int64, error) {
+	var count int64
+	if err := s.db.Model(&models.Video{}).Where("status = ?", "pending_review").Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("failed to count pending reviews: %w", err)
+	}
+	return count, nil
+}
+
+func (s *VideoService) MediaReplicationStats() (int64, time.Time, error) {
+	type stats struct {
+		Count  int64
+		Oldest *time.Time
+	}
+	var result stats
+	err := s.db.Model(&models.Video{}).
+		Select("COUNT(*) AS count, MIN(COALESCE(assets_replicated_at, created_at)) AS oldest").
+		Where("status = ? AND (assets_replicated_at IS NULL OR assets_replicated_at < ?)",
+			"active", time.Now().Add(-5*time.Minute)).
+		Scan(&result).Error
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("failed to load media replication stats: %w", err)
+	}
+	if result.Oldest == nil {
+		return result.Count, time.Time{}, nil
+	}
+	return result.Count, *result.Oldest, nil
+}
+
+func (s *VideoService) GetRejectedVideosBefore(cutoff time.Time, limit int) ([]*models.Video, error) {
+	var videos []*models.Video
+	if err := s.db.Where("status = ? AND reviewed_at < ?", "rejected", cutoff).
+		Order("reviewed_at ASC").Limit(limit).Find(&videos).Error; err != nil {
+		return nil, fmt.Errorf("failed to load expired rejected videos: %w", err)
+	}
+	return videos, nil
 }
 
 func (s *VideoService) GetVideoByID(videoID string) (*models.Video, error) {
@@ -514,4 +723,15 @@ func (s *VideoService) GetUserByID(userID uint) (*models.User, error) {
 	}
 
 	return &user, nil
+}
+
+func (s *VideoService) GetUserRole(userID uint) (string, error) {
+	var user models.User
+	if err := s.db.Select("role").First(&user, userID).Error; err != nil {
+		return "", err
+	}
+	if user.Role == "" {
+		return "user", nil
+	}
+	return user.Role, nil
 }

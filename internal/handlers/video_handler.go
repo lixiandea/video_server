@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,12 +12,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/lixiandea/video_server/internal/config"
 	"github.com/lixiandea/video_server/internal/models"
 	"github.com/lixiandea/video_server/internal/services"
 	"github.com/lixiandea/video_server/internal/utils"
 	"github.com/lixiandea/video_server/pkg/auth"
+	apperrors "github.com/lixiandea/video_server/pkg/errors"
 	"github.com/lixiandea/video_server/pkg/logging"
+	"github.com/lixiandea/video_server/pkg/metrics"
 	"github.com/lixiandea/video_server/pkg/queue"
 	"github.com/lixiandea/video_server/pkg/storage"
 	"github.com/lixiandea/video_server/pkg/validation"
@@ -99,8 +103,24 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 	}
 
 	// Create video record in database
-	video, err := h.videoService.CreateVideo(userID.(uint), videoName)
+	video, err := h.videoService.CreateVideo(
+		userID.(uint),
+		videoName,
+		file.Size,
+		h.cfg.Server.UserVideoQuota,
+		h.cfg.Server.UserStorageQuotaBytes,
+		h.cfg.Server.UserDailyUploadLimit,
+	)
 	if err != nil {
+		var appErr *apperrors.AppError
+		if errors.As(err, &appErr) {
+			switch appErr.Code {
+			case http.StatusForbidden:
+				metrics.IncUploadRejected("quota")
+			case http.StatusTooManyRequests:
+				metrics.IncUploadRejected("daily_limit")
+			}
+		}
 		utils.FailFrom(c, err, "Failed to create video record")
 		return
 	}
@@ -123,7 +143,7 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 
 	// Update video with file path and size
 	updates := map[string]interface{}{
-		"file_path":   h.storageService.GetVideoPath(video.UUID),
+		"file_path":   h.storageService.SourceKey(video.UUID),
 		"size":        file.Size,
 		"description": description,
 	}
@@ -131,18 +151,36 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 
 	// 入队转码任务；Redis 不可用时降级跳过，不影响上传结果
 	transcodeStatus := "skipped"
+	if h.taskQueue == nil && h.cfg.Server.VideoModerationRequired {
+		_ = h.videoService.SetVideoStatus(video.UUID, "failed")
+		utils.Fail(c, http.StatusServiceUnavailable, "Transcoding queue is unavailable")
+		return
+	}
 	if h.taskQueue != nil {
 		task := &queue.TranscodeTask{
+			TaskID:       uuid.New().String(),
 			VideoID:      video.UUID,
-			SourcePath:   h.storageService.GetVideoPath(video.UUID),
+			SourcePath:   h.storageService.SourceKey(video.UUID),
 			TargetFormat: "mp4",
 			Quality:      "high", // 可以支持多质量转码
+		}
+		task.Status = queue.TaskStatusPending
+
+		if err := h.videoService.SaveTranscodeTask(task); err != nil {
+			logging.GetLogger().Error("Failed to persist transcode task",
+				zap.String("video_id", video.UUID),
+				zap.Error(err))
+			_ = h.videoService.SetVideoStatus(video.UUID, "failed")
+			utils.FailFrom(c, err, "Failed to queue video for transcoding")
+			return
 		}
 
 		if err := h.taskQueue.EnqueueTranscodeTask(context.Background(), task); err != nil {
 			logging.GetLogger().Error("Failed to enqueue transcode task",
 				zap.String("video_id", video.UUID),
 				zap.Error(err))
+			// 持久任务已落库，Scheduler 会从数据库补偿投递。
+			transcodeStatus = "queued"
 		} else {
 			transcodeStatus = "queued"
 			logging.GetLogger().Info("Transcode task enqueued",
@@ -154,9 +192,13 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 			zap.String("video_id", video.UUID))
 	}
 
-	if transcodeStatus != "queued" {
+	if transcodeStatus == "skipped" {
 		// 没有可用的转码任务时原始文件仍可直接播放，避免视频停留在 processing
-		if err := h.videoService.SetVideoStatus(video.UUID, "active"); err != nil {
+		finalStatus := "active"
+		if h.cfg.Server.VideoModerationRequired {
+			finalStatus = "pending_review"
+		}
+		if err := h.videoService.SetVideoStatus(video.UUID, finalStatus); err != nil {
 			logging.GetLogger().Warn("Failed to mark video active after skipping transcode",
 				zap.String("video_id", video.UUID),
 				zap.Error(err))
@@ -174,6 +216,12 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 // resolveVideoPath 返回实际可播放的文件路径：优先使用转码产物（file_path），
 // 产物不存在或记录为空时回退到原始上传文件（以 UUID 命名）。
 func (h *VideoHandler) resolveVideoPath(video *models.Video) string {
+	if h.storageService.IsObjectStorage() {
+		if video.FilePath != "" && h.storageService.VideoExists(video.FilePath) {
+			return video.FilePath
+		}
+		return h.storageService.SourceKey(video.UUID)
+	}
 	if video.FilePath != "" {
 		name := filepath.Base(video.FilePath)
 		if h.storageService.VideoExists(name) {
@@ -213,6 +261,11 @@ func (h *VideoHandler) GetVideoInfo(c *gin.Context) {
 	// processing / failed 也允许查看详情，前端据此展示转码状态；deleted 及未知状态按不存在处理
 	switch video.Status {
 	case "active", "processing", "failed":
+	case "pending_review", "rejected":
+		if !h.canViewReviewStatus(c, video.AuthorID) {
+			utils.Fail(c, http.StatusNotFound, "Video not found")
+			return
+		}
 	default:
 		utils.Fail(c, http.StatusNotFound, "Video not found")
 		return
@@ -271,9 +324,27 @@ func (h *VideoHandler) GetVideoInfo(c *gin.Context) {
 		"like_count":    video.LikeCount,
 		"liked":         liked,
 		"status":        video.Status,
+		"review_note":   video.ReviewNote,
+		"reviewed_at":   video.ReviewedAt,
 		"hls_available": video.HLSPath != "",
 		"created_at":    video.CreatedAt,
 	})
+}
+
+func (h *VideoHandler) canViewReviewStatus(c *gin.Context, authorID uint) bool {
+	value, ok := c.Get("user_id")
+	if !ok {
+		return false
+	}
+	userID, ok := value.(uint)
+	if !ok {
+		return false
+	}
+	if userID == authorID {
+		return true
+	}
+	role, err := h.videoService.GetUserRole(userID)
+	return err == nil && role == "admin"
 }
 
 // coverURL 返回封面地址；没有封面时返回空串，由前端回退到占位样式。
@@ -339,16 +410,26 @@ func (h *VideoHandler) GetVideoCover(c *gin.Context) {
 		return
 	}
 
-	// 与播放路径一致：库中可能是别处写入的绝对路径，这里只取文件名重新拼接。
-	coverName := filepath.Base(video.CoverPath)
+	coverName := video.CoverPath
 	// ?size=320/720 命中已生成的变体时优先使用，否则回退原图。
 	if width, ok := coverSizeWidths[c.Query("size")]; ok {
-		variant := filepath.Base(services.CoverVariantPath(video.CoverPath, width))
-		if _, err := os.Stat(h.storageService.GetVideoPath(variant)); err == nil {
+		variant := filepath.ToSlash(services.CoverVariantPath(video.CoverPath, width))
+		if h.storageService.VideoExists(variant) {
 			coverName = variant
 		}
 	}
 
+	if h.storageService.IsObjectStorage() {
+		url, err := h.storageService.PresignGet(c.Request.Context(), coverName, time.Hour)
+		if err != nil {
+			utils.Fail(c, http.StatusNotFound, "Cover not found")
+			return
+		}
+		c.Redirect(http.StatusFound, url)
+		return
+	}
+
+	coverName = filepath.Base(coverName)
 	coverPath := h.storageService.GetVideoPath(coverName)
 	if _, err := os.Stat(coverPath); err != nil {
 		utils.Fail(c, http.StatusNotFound, "Cover not found")
@@ -396,6 +477,8 @@ func videoListItem(video *models.Video, authorName string) map[string]interface{
 		"view_count":   video.ViewCount,
 		"like_count":   video.LikeCount,
 		"status":       video.Status,
+		"review_note":  video.ReviewNote,
+		"reviewed_at":  video.ReviewedAt,
 		"created_at":   video.CreatedAt,
 	}
 }
@@ -581,6 +664,57 @@ func (h *VideoHandler) GetUserVideos(c *gin.Context) {
 	})
 }
 
+// ListReviewVideos 返回管理员审核队列。
+func (h *VideoHandler) ListReviewVideos(c *gin.Context) {
+	status := strings.TrimSpace(c.DefaultQuery("status", "pending_review"))
+	switch status {
+	case "pending_review", "active", "rejected", "processing", "failed":
+	default:
+		utils.Fail(c, http.StatusBadRequest, "Invalid review status")
+		return
+	}
+	page, limit, offset := parsePagination(c)
+	videos, total, err := h.videoService.GetVideosForReview(status, limit, offset)
+	if err != nil {
+		utils.FailFrom(c, err, "Failed to list review videos")
+		return
+	}
+	list, err := h.buildVideoList(videos)
+	if err != nil {
+		utils.FailFrom(c, err, "Failed to get video authors")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"videos": list,
+		"page":   page,
+		"limit":  limit,
+		"total":  total,
+		"status": status,
+	})
+}
+
+// ReviewVideo 批准或拒绝待审视频。
+func (h *VideoHandler) ReviewVideo(c *gin.Context) {
+	var req struct {
+		Decision string `json:"decision" binding:"required"`
+		Note     string `json:"note"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Fail(c, http.StatusBadRequest, "Invalid review request")
+		return
+	}
+	adminID, ok := c.Get("user_id")
+	if !ok {
+		utils.Fail(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	if err := h.videoService.ReviewVideo(c.Param("video_id"), adminID.(uint), req.Decision, req.Note); err != nil {
+		utils.FailFrom(c, err, "Failed to review video")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Video review completed"})
+}
+
 func (h *VideoHandler) DeleteVideo(c *gin.Context) {
 	videoID := c.Param("video_id")
 	userID, exists := c.Get("user_id")
@@ -667,6 +801,15 @@ func (h *VideoHandler) GetVideoStream(c *gin.Context) {
 	}
 
 	videoPath := h.resolveVideoPath(video)
+	if h.storageService.IsObjectStorage() {
+		url, err := h.storageService.PresignGet(c.Request.Context(), videoPath, 15*time.Minute)
+		if err != nil {
+			utils.FailFrom(c, err, "Failed to create playback URL")
+			return
+		}
+		c.Redirect(http.StatusFound, url)
+		return
+	}
 	c.Header("Content-Type", "video/mp4")
 	c.File(videoPath)
 }
@@ -693,14 +836,16 @@ func (h *VideoHandler) GetVideoHLS(c *gin.Context) {
 		return
 	}
 
-	filePath := filepath.Join(filepath.Dir(video.HLSPath), name)
-	if _, err := os.Stat(filePath); err != nil {
-		utils.Fail(c, http.StatusNotFound, "File not found")
-		return
-	}
+	objectKey := filepath.ToSlash(filepath.Join(filepath.Dir(video.HLSPath), name))
 
 	if strings.HasSuffix(name, ".m3u8") {
-		content, err := os.ReadFile(filePath)
+		reader, err := h.storageService.Open(c.Request.Context(), objectKey)
+		if err != nil {
+			utils.FailFrom(c, err, "Failed to read playlist")
+			return
+		}
+		defer reader.Close()
+		content, err := io.ReadAll(reader)
 		if err != nil {
 			utils.FailFrom(c, err, "Failed to read playlist")
 			return
@@ -713,8 +858,18 @@ func (h *VideoHandler) GetVideoHLS(c *gin.Context) {
 		return
 	}
 
+	if h.storageService.IsObjectStorage() {
+		url, err := h.storageService.PresignGet(c.Request.Context(), objectKey, 15*time.Minute)
+		if err != nil {
+			utils.FailFrom(c, err, "Failed to create segment URL")
+			return
+		}
+		c.Redirect(http.StatusFound, url)
+		return
+	}
+
 	c.Header("Content-Type", "video/mp2t")
-	c.File(filePath)
+	c.File(objectKey)
 }
 
 // validHLSFileName 只放行 playlist 与分片文件名，避免目录穿越。

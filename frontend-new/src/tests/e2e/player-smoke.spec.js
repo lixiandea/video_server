@@ -38,13 +38,17 @@ async function createActiveVideo(request) {
   }
   expect(status).toBe('active')
 
-  return { token: auth.token, videoId }
+  return { token: auth.token, videoId, username, password: 'TestPass123' }
 }
 
 test('HLS 播放并在失败时回退到 MP4', async ({ page, request, baseURL }) => {
-  const { token, videoId } = await createActiveVideo(request)
+  const { token, videoId, username, password } = await createActiveVideo(request)
   try {
-    await page.addInitScript((value) => localStorage.setItem('token', value), token)
+    await page.goto(`${baseURL}/login`)
+    await page.locator('#username').fill(username)
+    await page.locator('#password').fill(password)
+    await page.click('button[type="submit"]')
+    await expect(page).toHaveURL('/')
 
     const hlsRequests = []
     page.on('request', (req) => {
@@ -70,6 +74,7 @@ test('HLS 播放并在失败时回退到 MP4', async ({ page, request, baseURL }
   } finally {
     await request.delete(`${API}/api/v1/users/account`, {
       headers: { Authorization: `Bearer ${token}` },
+      data: { password },
     })
   }
 })

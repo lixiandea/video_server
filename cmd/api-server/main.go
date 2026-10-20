@@ -27,6 +27,9 @@ import (
 func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
+	if err := cfg.ValidateProduction(); err != nil {
+		log.Fatal("Unsafe production configuration: ", err)
+	}
 
 	// Initialize structured logging with default settings
 	if err := logging.InitLogger("info", "stdout"); err != nil {
@@ -37,6 +40,12 @@ func main() {
 	// The JWT secret is mandatory: fail fast instead of signing with a weak default.
 	if err := auth.InitJWT(cfg.Server.JWTSecret); err != nil {
 		log.Fatal("Invalid JWT configuration: ", err)
+	}
+	if err := auth.InitTokenTTL(
+		time.Duration(cfg.Server.AccessTokenTTL)*time.Second,
+		time.Duration(cfg.Server.RefreshTokenTTL)*time.Second,
+	); err != nil {
+		log.Fatal("Invalid token TTL configuration: ", err)
 	}
 
 	// Initialize database
@@ -55,6 +64,8 @@ func main() {
 		DialTimeout:  time.Duration(cfg.Redis.DialTimeout) * time.Second,
 		ReadTimeout:  time.Duration(cfg.Redis.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(cfg.Redis.WriteTimeout) * time.Second,
+		TLSEnabled:   cfg.Redis.TLSEnabled,
+		TLSCAPath:    cfg.Redis.TLSCAPath,
 	}
 	if err := redis.InitRedis(redisCfg); err != nil {
 		log.Printf("Warning: Redis connection failed, continuing without cache: %v", err)
@@ -63,7 +74,10 @@ func main() {
 	}
 
 	// Initialize storage
-	storageService := storage.NewStorageService(&cfg.Storage)
+	storageService, err := storage.NewStorageService(&cfg.Storage)
+	if err != nil {
+		log.Fatal("Storage initialization failed: ", err)
+	}
 
 	// Initialize task queue and transcode service
 	redisClient := redis.GetClient()
@@ -72,7 +86,7 @@ func main() {
 
 	if redisClient != nil {
 		taskQueue = queue.NewTaskQueue(redisClient, queue.DefaultQueueConfig)
-		transcodeService = services.NewTranscodeService(taskQueue, cfg.Storage.VideoDir)
+		transcodeService = services.NewTranscodeService(taskQueue, storageService, cfg.Server.VideoModerationRequired)
 		log.Println("Transcode queue initialized")
 	} else {
 		log.Println("Warning: Redis not available, transcode queue disabled")
@@ -89,9 +103,10 @@ func main() {
 
 	// Initialize handlers
 	sessionService := services.NewSessionService()
-	userHandler := handlers.NewUserHandler()
+	userHandler := handlers.NewUserHandler(cfg)
 	videoHandler := handlers.NewVideoHandler(storageService, cfg, transcodeService, taskQueue)
 	commentHandler := handlers.NewCommentHandler()
+	roleService := services.NewUserService()
 	var transcodeHandler *handlers.TranscodeHandler
 	if transcodeService != nil && taskQueue != nil {
 		transcodeHandler = handlers.NewTranscodeHandler(transcodeService, taskQueue)
@@ -114,6 +129,9 @@ func main() {
 	// Setup routes
 	r := gin.New()
 	r.MaxMultipartMemory = 8 << 20 // 8 MB，其余部分落盘，避免大文件常驻内存
+	if err := r.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+		log.Fatal("Invalid trusted proxy configuration: ", err)
+	}
 
 	// Global middleware
 	r.Use(middleware.CORSMiddleware(cfg.Server.CORS.AllowedOrigins))
@@ -129,6 +147,28 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "OK", "service": "api-server"})
 	})
+	r.GET("/ready", func(c *gin.Context) {
+		if database.DB == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "NOT_READY", "database": "unavailable"})
+			return
+		}
+		sqlDB, err := database.DB.DB()
+		if err != nil || sqlDB.PingContext(c.Request.Context()) != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "NOT_READY", "database": "unavailable"})
+			return
+		}
+		if client := redis.GetClient(); client != nil {
+			if err := client.Ping(c.Request.Context()).Err(); err != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"status": "NOT_READY", "redis": "unavailable"})
+				return
+			}
+		}
+		if err := storageService.Healthy(c.Request.Context()); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "NOT_READY", "storage": "unavailable"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "READY", "service": "api-server"})
+	})
 
 	// Metrics endpoint
 	metrics.RegisterMetricsEndpoint(r, cfg.Server.MetricsToken)
@@ -138,6 +178,8 @@ func main() {
 	{
 		public.POST("/users/register", userHandler.Register)
 		public.POST("/users/login", userHandler.Login)
+		public.POST("/auth/refresh", userHandler.Refresh)
+		public.POST("/auth/logout", userHandler.CookieLogout)
 		// 视频列表 / 搜索：首页与列表页对未登录用户可见
 		public.GET("/videos", videoHandler.ListVideos)
 		// 推荐：匿名请求走热门回退，有效登录令牌走个性化
@@ -193,6 +235,13 @@ func main() {
 		}
 	}
 
+	admin := protected.Group("/admin")
+	admin.Use(middleware.RequireRole(roleService, "admin"))
+	{
+		admin.GET("/videos", videoHandler.ListReviewVideos)
+		admin.POST("/videos/:video_id/review", videoHandler.ReviewVideo)
+	}
+
 	logging.GetLogger().Info("API server starting",
 		zap.String("port", cfg.Server.Port),
 		zap.String("mode", cfg.Server.Mode),
@@ -200,8 +249,10 @@ func main() {
 
 	// Start server
 	srv := &http.Server{
-		Addr:    ":" + cfg.Server.Port,
-		Handler: r,
+		Addr:              ":" + cfg.Server.Port,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
 	}
 
 	// Start metrics collection

@@ -1,5 +1,5 @@
 # Multi-stage build for scheduler
-FROM golang:1.27-alpine AS builder
+FROM golang:1.27-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS builder
 
 # Install git for go modules
 RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
@@ -21,7 +21,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o scheduler ./cmd/scheduler/main.go
 
 # Final stage
-FROM alpine:latest
+FROM alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
 
 # Install ca-certificates for HTTPS requests
 RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
@@ -29,11 +29,18 @@ RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories
 
 WORKDIR /app
 
-# Copy the binary from builder stage
-COPY --from=builder /app/scheduler .
+RUN addgroup -S -g 10001 app && adduser -S -D -H -u 10001 -G app app \
+    && mkdir -p /app/storage/temp \
+    && chown -R app:app /app
+
+COPY --from=builder --chown=app:app /app/scheduler .
+USER app
 
 # Expose port
 EXPOSE 8089
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -q -O- http://127.0.0.1:8089/health >/dev/null || exit 1
 
 # Run the binary
 ENTRYPOINT ["./scheduler"]

@@ -1,81 +1,93 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import userApi from '../api/user'
+import userApi from '@/api/user'
+import { setAccessToken } from '@/api/client'
 
-// 安全的 localStorage 访问
-function getLocalStorageItem(key) {
+function getStoredUser() {
   try {
-    return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('user') : null
+    return raw ? JSON.parse(raw) : null
   } catch {
     return null
   }
 }
 
-// 安全的 localStorage 设置
-function setLocalStorageItem(key, value) {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(key, value)
-    }
-  } catch {
-    // ignore
-  }
-}
-
 export const useUserStore = defineStore('user', () => {
-  const token = ref(getLocalStorageItem('token') || '')
-  const user = ref(getLocalStorageItem('user') ? JSON.parse(getLocalStorageItem('user')) : null)
-  
-  const isLoggedIn = computed(() => !!token.value)
-  const username = computed(() => user.value?.username || '')
-  
-  function setAuth(newToken, userData) {
-    token.value = newToken
-    user.value = userData
-    setLocalStorageItem('token', newToken)
-    if (userData) {
-      setLocalStorageItem('user', JSON.stringify(userData))
-    }
-  }
+  const accessToken = ref('')
+  const user = ref(getStoredUser())
+  const initialized = ref(false)
+  let initPromise = null
 
-  // 登出：先本地清理（保证 UI 立即回到未登录态），再通知后端吊销会话。
-  // 吊销失败不应把用户困在登录态，令牌未吊销时也会自然过期。
-  function logout() {
-    const currentToken = token.value
-    token.value = ''
-    user.value = null
+  const isLoggedIn = computed(() => !!accessToken.value)
+  const username = computed(() => user.value?.username || '')
+
+  function setAuth(newToken, userData) {
+    accessToken.value = newToken || ''
+    setAccessToken(accessToken.value)
+    user.value = userData || null
     try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem('token')
+      localStorage.removeItem('token')
+      if (userData) {
+        localStorage.setItem('user', JSON.stringify(userData))
+      } else {
         localStorage.removeItem('user')
       }
     } catch {
-      // ignore
+      // ignore storage failures
     }
+  }
 
-    if (!currentToken) {
-      return Promise.resolve()
+  async function initializeSession() {
+    if (initialized.value) return !!accessToken.value
+    if (initPromise) return initPromise
+    initPromise = userApi.refresh()
+      .then(({ data }) => {
+        setAuth(data.token, data.user)
+        return true
+      })
+      .catch(() => {
+        setAuth('', null)
+        return false
+      })
+      .finally(() => {
+        initialized.value = true
+        initPromise = null
+      })
+    return initPromise
+  }
+
+  function logout() {
+    setAuth('', null)
+    return userApi.logout().catch(() => {})
+  }
+
+  function updateUser(userData) {
+    user.value = { ...(user.value || {}), ...userData }
+    try {
+      localStorage.setItem('user', JSON.stringify(user.value))
+    } catch {
+      // ignore storage failures
     }
+  }
 
-    return userApi.logout(currentToken).catch(() => {
-      // ignore
+  if (typeof window !== 'undefined') {
+    window.addEventListener('auth:refreshed', (event) => {
+      setAuth(accessToken.value, event.detail)
+    })
+    window.addEventListener('auth:expired', () => {
+      setAuth('', null)
     })
   }
-  
-  function checkAuth() {
-    const storedUser = localStorage.getItem('user')
-    if (token.value && storedUser) {
-      user.value = JSON.parse(storedUser)
-    }
-  }
-  
+
   return {
-    token,
+    accessToken,
     user,
+    initialized,
     isLoggedIn,
     username,
     setAuth,
     logout,
-    checkAuth
+    initializeSession,
+    updateUser
   }
 })

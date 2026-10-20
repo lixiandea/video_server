@@ -16,6 +16,7 @@ type User struct {
 	BaseModel
 	LoginName string `gorm:"uniqueIndex;not null;type:varchar(255)" json:"login_name"`
 	Pwd       string `gorm:"not null" json:"pwd"`
+	Role      string `gorm:"type:varchar(20);not null;default:'user';index" json:"role"`
 	// Email / Bio 为可选资料字段，空字符串表示未填写
 	Email string `gorm:"type:varchar(255);default:''" json:"email"`
 	Bio   string `gorm:"type:varchar(500);default:''" json:"bio"`
@@ -38,6 +39,11 @@ type Video struct {
 	HLSPath   string `gorm:"type:varchar(255);default:''" json:"hls_path"`
 	ViewCount int64  `gorm:"not null;default:0" json:"view_count"`
 	LikeCount int64  `gorm:"not null;default:0" json:"like_count"`
+	// 审核字段只在启用先审后发时填写；ReviewedBy 指向管理员用户 ID。
+	ReviewedBy         *uint      `gorm:"index" json:"reviewed_by,omitempty"`
+	ReviewedAt         *time.Time `json:"reviewed_at,omitempty"`
+	ReviewNote         string     `gorm:"type:varchar(500);default:''" json:"review_note,omitempty"`
+	AssetsReplicatedAt *time.Time `json:"assets_replicated_at,omitempty"`
 }
 
 // VideoLike 记录「谁点赞了哪个视频」，(user_id, video_uuid) 组合唯一，
@@ -67,11 +73,30 @@ type Comment struct {
 
 type Session struct {
 	BaseModel
-	UUID   string `gorm:"uniqueIndex;not null;type:varchar(255)" json:"uuid"`
-	UserID uint   `gorm:"not null;index" json:"user_id"`
+	UUID              string    `gorm:"uniqueIndex;not null;type:varchar(255)" json:"uuid"`
+	UserID            uint      `gorm:"not null;index" json:"user_id"`
+	RefreshTokenHash  string    `gorm:"type:varchar(64);default:''" json:"-"`
+	PreviousTokenHash string    `gorm:"type:varchar(64);default:''" json:"-"`
+	LastRotatedAt     time.Time `json:"last_rotated_at"`
+	UserAgentHash     string    `gorm:"type:varchar(64);default:''" json:"-"`
+	IPHash            string    `gorm:"type:varchar(64);default:''" json:"-"`
 	// ExpiresAt 是会话到期时间（Unix 秒），与访问令牌有效期保持一致。
 	// 列名沿用历史的 ttl，避免对既有表做重命名 DDL。
 	ExpiresAt int64 `gorm:"column:ttl" json:"expires_at"`
+}
+
+// TranscodeTaskRecord 是转码任务的持久事实来源。Redis Stream 只负责低延迟调度，
+// Redis 丢失或 Worker 异常后，Scheduler 可从本表重新投递未完成任务。
+type TranscodeTaskRecord struct {
+	BaseModel
+	TaskID       string     `gorm:"uniqueIndex;not null;type:varchar(64)" json:"task_id"`
+	VideoID      string     `gorm:"not null;index;type:varchar(255)" json:"video_id"`
+	Status       string     `gorm:"not null;index;type:varchar(32)" json:"status"`
+	Payload      string     `gorm:"type:longtext;not null" json:"payload"`
+	Retries      int        `gorm:"not null;default:0" json:"retries"`
+	ErrorMessage string     `gorm:"type:varchar(1000);default:''" json:"error_message"`
+	StartedAt    *time.Time `json:"started_at,omitempty"`
+	CompletedAt  *time.Time `json:"completed_at,omitempty"`
 }
 
 type VideoDeletionRecord struct {

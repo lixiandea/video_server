@@ -185,6 +185,7 @@ func runCheck(cfg *config.Config) error {
 		&models.Session{},
 		&models.VideoView{},
 		&models.VideoDeletionRecord{},
+		&models.TranscodeTaskRecord{},
 		&models.AuditLog{},
 	}
 	issues, err := database.CheckModelSchema(db, modelsToCheck...)

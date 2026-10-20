@@ -27,8 +27,7 @@ test.describe('视频列表页', () => {
   test('应该显示空状态（无视频时）', async ({ page }) => {
     await page.goto('/videos')
     
-    // 等待加载完成
-    await page.waitForSelector('.spinner-border', { state: 'detached' })
+    await expect(page.locator('.videos-page')).toHaveAttribute('data-loading', 'false')
     
     // 如果没有视频，应该显示空状态
     const emptyState = page.locator('text=暂无视频')

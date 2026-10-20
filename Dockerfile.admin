@@ -1,0 +1,20 @@
+FROM golang:1.27-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS builder
+
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
+    && apk add --no-cache git
+WORKDIR /app
+COPY go.mod go.sum ./
+ENV GOPROXY=https://goproxy.cn,direct
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -o admin ./cmd/admin/main.go
+
+FROM alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
+    && apk add --no-cache ca-certificates \
+    && addgroup -S -g 10001 app \
+    && adduser -S -D -H -u 10001 -G app app
+WORKDIR /app
+COPY --from=builder --chown=app:app /app/admin .
+USER app
+ENTRYPOINT ["./admin"]

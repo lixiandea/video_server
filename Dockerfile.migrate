@@ -1,5 +1,5 @@
 # Multi-stage build for the migration CLI (one-shot service)
-FROM golang:1.27-alpine AS builder
+FROM golang:1.27-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS builder
 
 RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
     && apk add --no-cache git
@@ -15,15 +15,17 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o migrate ./cmd/migrate/main.go
 
-FROM alpine:latest
+FROM alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
 
 RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
     && apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-COPY --from=builder /app/migrate .
-COPY --from=builder /app/migrations ./migrations
+RUN addgroup -S -g 10001 app && adduser -S -D -H -u 10001 -G app app
+COPY --from=builder --chown=app:app /app/migrate .
+COPY --from=builder --chown=app:app /app/migrations ./migrations
+USER app
 
 # 默认执行 up；也可用 `docker compose run --rm migrate status` 覆盖子命令
 ENTRYPOINT ["./migrate"]

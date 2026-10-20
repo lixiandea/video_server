@@ -1,52 +1,24 @@
 #!/bin/bash
 
-# Build script for video server
+set -euo pipefail
 
 echo "Building video server services..."
-
-# Create output directory
 mkdir -p bin
 
-# Build API server
 echo "Building API server..."
-cd cmd/api-server
-go build -o ../../bin/api-server .
-if [ $? -ne 0 ]; then
-    echo "Failed to build API server"
-    exit 1
-fi
-cd ../..
+go build -o bin/api-server ./cmd/api-server
 
-# Build scheduler
 echo "Building scheduler..."
-cd cmd/scheduler
-go build -o ../../bin/scheduler .
-if [ $? -ne 0 ]; then
-    echo "Failed to build scheduler"
-    exit 1
-fi
-cd ../..
+go build -o bin/scheduler ./cmd/scheduler
 
-# Build transcode worker
 echo "Building transcode worker..."
-cd cmd/transcode-worker
-go build -o ../../bin/transcode-worker .
-if [ $? -ne 0 ]; then
-    echo "Failed to build transcode worker"
-    exit 1
-fi
-cd ../..
+go build -o bin/transcode-worker ./cmd/transcode-worker
 
-# Build migration CLI
 echo "Building migrate CLI..."
-cd cmd/migrate
-go build -o ../../bin/migrate .
-if [ $? -ne 0 ]; then
-    echo "Failed to build migrate CLI"
-    exit 1
-fi
-cd ../..
+go build -o bin/migrate ./cmd/migrate
+
+echo "Building admin CLI..."
+go build -o bin/admin ./cmd/admin
 
 echo "Build completed successfully!"
-echo "Binaries are located in the 'bin' directory:"
 ls -la bin/

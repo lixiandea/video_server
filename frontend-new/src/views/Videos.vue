@@ -1,5 +1,5 @@
 <template>
-  <div class="videos-page">
+  <div class="videos-page" :data-loading="loading">
     <div class="container">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="mb-0">视频列表</h1>

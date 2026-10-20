@@ -87,6 +87,19 @@ const videoApi = {
     return apiClient.get(`/videos/${id}/related`, {
       params: { limit }
     })
+  },
+
+  getReviewQueue(status = 'pending_review', page = 1, limit = 20) {
+    return apiClient.get('/admin/videos', {
+      params: { status, page, limit }
+    })
+  },
+
+  reviewVideo(id, decision, note = '') {
+    return apiClient.post(`/admin/videos/${id}/review`, {
+      decision,
+      note
+    })
   }
 }
 

@@ -92,7 +92,7 @@ const handleLogin = async () => {
     const redirect = route.query.redirect || '/'
     router.push(redirect)
   } catch (err) {
-    error.value = err.response?.data?.message || '登录失败，请检查用户名和密码'
+    error.value = err.response?.data?.error || err.response?.data?.message || '登录失败，请检查用户名和密码'
   } finally {
     loading.value = false
   }

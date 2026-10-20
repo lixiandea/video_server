@@ -2,8 +2,11 @@ package redis
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -23,11 +26,13 @@ type Config struct {
 	DialTimeout  time.Duration
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
+	TLSEnabled   bool
+	TLSCAPath    string
 }
 
 // InitRedis 初始化 Redis 客户端
 func InitRedis(cfg *Config) error {
-	Client = redis.NewClient(&redis.Options{
+	options := &redis.Options{
 		Addr:         cfg.Addr,
 		Password:     cfg.Password,
 		DB:           cfg.DB,
@@ -36,7 +41,15 @@ func InitRedis(cfg *Config) error {
 		DialTimeout:  cfg.DialTimeout,
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
-	})
+	}
+	if cfg.TLSEnabled {
+		tlsConfig, err := loadRedisTLSConfig(cfg.TLSCAPath)
+		if err != nil {
+			return err
+		}
+		options.TLSConfig = tlsConfig
+	}
+	Client = redis.NewClient(options)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -52,6 +65,21 @@ func InitRedis(cfg *Config) error {
 		zap.Int("pool_size", cfg.PoolSize))
 
 	return nil
+}
+
+func loadRedisTLSConfig(caPath string) (*tls.Config, error) {
+	if caPath == "" {
+		return &tls.Config{MinVersion: tls.VersionTLS12}, nil
+	}
+	caPEM, err := os.ReadFile(caPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Redis CA certificate: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("Redis CA certificate contains no valid certificates")
+	}
+	return &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool}, nil
 }
 
 // GetClient 返回 Redis 客户端实例

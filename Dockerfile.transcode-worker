@@ -1,5 +1,5 @@
 # Multi-stage build for transcode worker
-FROM golang:1.27-alpine AS builder
+FROM golang:1.27-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS builder
 
 # Install git for go modules (ffmpeg is only needed at runtime, installed in the final stage)
 RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
@@ -21,19 +21,23 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o transcode-worker ./cmd/transcode-worker/main.go
 
 # Final stage
-FROM alpine:latest
+FROM alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
 
 # Install ca-certificates and ffmpeg for HTTPS and transcoding
 RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
-    && apk --no-cache add ca-certificates ffmpeg
+    && apk --no-cache add ca-certificates ffmpeg clamav-clamdscan
 
 WORKDIR /app
 
-# Copy the binary from builder stage
-COPY --from=builder /app/transcode-worker .
+RUN addgroup -S -g 10001 app && adduser -S -D -H -u 10001 -G app app \
+    && mkdir -p /app/storage/temp \
+    && chown -R app:app /app
 
-# Create storage directory
-RUN mkdir -p /app/storage/videos /app/storage/temp
+COPY --from=builder --chown=app:app /app/transcode-worker .
+USER app
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD pgrep -f transcode-worker >/dev/null || exit 1
 
 # Run the binary
 ENTRYPOINT ["./transcode-worker"]

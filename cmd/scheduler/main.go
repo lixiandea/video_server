@@ -13,6 +13,8 @@ import (
 	"github.com/lixiandea/video_server/internal/services"
 	"github.com/lixiandea/video_server/pkg/database"
 	"github.com/lixiandea/video_server/pkg/metrics"
+	"github.com/lixiandea/video_server/pkg/queue"
+	"github.com/lixiandea/video_server/pkg/redis"
 	"github.com/lixiandea/video_server/pkg/storage"
 	"github.com/spf13/viper"
 )
@@ -20,6 +22,9 @@ import (
 func main() {
 	// 加载调度器专用配置
 	cfg := loadSchedulerConfig()
+	if err := cfg.ValidateProduction(); err != nil {
+		log.Fatal("Unsafe production configuration: ", err)
+	}
 
 	// Initialize database
 	if _, err := database.InitDatabase(&cfg.Database); err != nil {
@@ -27,7 +32,10 @@ func main() {
 	}
 
 	// Initialize storage
-	storageService := storage.NewStorageService(&cfg.Storage)
+	storageService, err := storage.NewStorageService(&cfg.Storage)
+	if err != nil {
+		log.Fatal("Storage initialization failed: ", err)
+	}
 
 	// Set Gin mode
 	if cfg.Server.Mode == "release" {
@@ -37,14 +45,41 @@ func main() {
 	}
 
 	// Initialize services
-	videoService := services.NewVideoService()
 	auditService := services.NewAuditService(database.GetDB())
+
+	redisCfg := &redis.Config{
+		Addr:         cfg.Redis.Addr,
+		Password:     cfg.Redis.Password,
+		DB:           cfg.Redis.DB,
+		PoolSize:     cfg.Redis.PoolSize,
+		MinIdleConns: cfg.Redis.MinIdleConns,
+		DialTimeout:  time.Duration(cfg.Redis.DialTimeout) * time.Second,
+		ReadTimeout:  time.Duration(cfg.Redis.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(cfg.Redis.WriteTimeout) * time.Second,
+		TLSEnabled:   cfg.Redis.TLSEnabled,
+		TLSCAPath:    cfg.Redis.TLSCAPath,
+	}
+	var taskQueue *queue.TaskQueue
+	if err := redis.InitRedis(redisCfg); err != nil {
+		log.Printf("Warning: Redis unavailable, task recovery disabled: %v", err)
+	} else {
+		defer redis.Close()
+		taskQueue = queue.NewTaskQueue(redis.GetClient(), queue.DefaultQueueConfig)
+	}
+	videoService := services.NewVideoService()
+	if taskQueue != nil {
+		go startTaskRecovery(videoService, taskQueue)
+	}
 
 	// Start cleanup worker
 	go startCleanupWorker(videoService, storageService, auditService)
+	go startReplicationWorker(videoService, storageService)
 
 	// Setup basic API for health checks and manual triggers
 	r := gin.Default()
+	if err := r.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+		log.Fatal("Invalid trusted proxy configuration: ", err)
+	}
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
@@ -69,6 +104,7 @@ func main() {
 
 // 加载调度器专用配置
 func loadSchedulerConfig() *config.Config {
+	config.LoadSecretFiles()
 	// Enable environment variable binding
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -79,23 +115,57 @@ func loadSchedulerConfig() *config.Config {
 	viper.BindEnv("database.user", "DB_USER")
 	viper.BindEnv("database.password", "DB_PASSWORD")
 	viper.BindEnv("database.name", "DB_NAME")
+	viper.BindEnv("database.tls_ca_path", "DB_TLS_CA_PATH")
+	viper.BindEnv("database.log_level", "DB_LOG_LEVEL")
+	viper.BindEnv("redis.addr", "REDIS_ADDR")
+	viper.BindEnv("redis.password", "REDIS_PASSWORD")
+	viper.BindEnv("redis.tls_enabled", "REDIS_TLS_ENABLED")
+	viper.BindEnv("redis.tls_ca_path", "REDIS_TLS_CA_PATH")
 
 	// Bind storage directories so the cleanup job uses the mounted volume
 	viper.BindEnv("storage.video_dir", "STORAGE_VIDEO_DIR")
 	viper.BindEnv("storage.temp_dir", "STORAGE_TEMP_DIR")
+	viper.BindEnv("storage.backend", "STORAGE_BACKEND")
+	viper.BindEnv("storage.s3_endpoint", "S3_ENDPOINT")
+	viper.BindEnv("storage.s3_region", "S3_REGION")
+	viper.BindEnv("storage.s3_bucket", "S3_BUCKET")
+	viper.BindEnv("storage.s3_access_key", "S3_ACCESS_KEY")
+	viper.BindEnv("storage.s3_secret_key", "S3_SECRET_KEY")
+	viper.BindEnv("storage.s3_use_ssl", "S3_USE_SSL")
+	viper.BindEnv("storage.s3_backup_endpoint", "S3_BACKUP_ENDPOINT")
+	viper.BindEnv("storage.s3_backup_region", "S3_BACKUP_REGION")
+	viper.BindEnv("storage.s3_backup_bucket", "S3_BACKUP_BUCKET")
+	viper.BindEnv("storage.s3_backup_access_key", "S3_BACKUP_ACCESS_KEY")
+	viper.BindEnv("storage.s3_backup_secret_key", "S3_BACKUP_SECRET_KEY")
+	viper.BindEnv("server.metrics_token", "METRICS_TOKEN")
+	viper.BindEnv("server.mode", "SERVER_MODE", "GIN_MODE")
 
 	// Set defaults
 	viper.SetDefault("server.port", "8089")
 	viper.SetDefault("server.mode", "debug")
+	viper.SetDefault("server.trusted_proxies", []string{"127.0.0.1", "::1"})
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", 3306)
 	viper.SetDefault("database.user", "root")
 	viper.SetDefault("database.password", "password")
 	viper.SetDefault("database.name", "video_server")
+	viper.SetDefault("redis.addr", "localhost:6379")
+	viper.SetDefault("redis.password", "")
+	viper.SetDefault("redis.db", 0)
+	viper.SetDefault("redis.pool_size", 20)
+	viper.SetDefault("redis.min_idle_conns", 5)
+	viper.SetDefault("redis.dial_timeout", 5)
+	viper.SetDefault("redis.read_timeout", 3)
+	viper.SetDefault("redis.write_timeout", 3)
 	viper.SetDefault("database.charset", "utf8mb4")
 	viper.SetDefault("storage.video_dir", "./storage/videos/")
 	viper.SetDefault("storage.template_dir", "./templates/")
 	viper.SetDefault("storage.temp_dir", "./storage/temp/")
+	viper.SetDefault("storage.backend", "local")
+	viper.SetDefault("storage.s3_use_ssl", true)
+	if proxies := os.Getenv("TRUSTED_PROXIES"); proxies != "" {
+		viper.Set("server.trusted_proxies", strings.Split(proxies, ","))
+	}
 
 	// Set scheduler specific config file
 	viper.SetConfigName("config-scheduler")
@@ -112,6 +182,31 @@ func loadSchedulerConfig() *config.Config {
 	}
 
 	return &config
+}
+
+func startTaskRecovery(videoService *services.VideoService, taskQueue *queue.TaskQueue) {
+	recover := func() {
+		tasks, err := videoService.LoadRecoverableTranscodeTasks(time.Now().Add(-30*time.Minute), 20)
+		if err != nil {
+			log.Printf("Error loading persistent transcode tasks: %v", err)
+			return
+		}
+		for _, task := range tasks {
+			if err := taskQueue.EnqueueTranscodeTask(context.Background(), task); err != nil {
+				log.Printf("Error recovering transcode task %s: %v", task.TaskID, err)
+				continue
+			}
+			if err := videoService.SaveTranscodeTask(task); err != nil {
+				log.Printf("Error updating recovered task %s: %v", task.TaskID, err)
+			}
+		}
+	}
+	recover()
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		recover()
+	}
 }
 
 func startCleanupWorker(videoService *services.VideoService, storageService *storage.StorageService, auditService *services.AuditService) {
@@ -133,6 +228,40 @@ func startCleanupWorker(videoService *services.VideoService, storageService *sto
 	}
 }
 
+func startReplicationWorker(videoService *services.VideoService, storageService *storage.StorageService) {
+	replicate := func() {
+		if count, oldest, err := videoService.MediaReplicationStats(); err == nil {
+			metrics.SetMediaReplicationStats(count, oldest)
+		}
+		if count, err := videoService.CountPendingReview(); err == nil {
+			metrics.SetReviewBacklog(count)
+		}
+		videos, err := videoService.GetVideosNeedingReplication(20)
+		if err != nil {
+			log.Printf("Error loading media replication queue: %v", err)
+			return
+		}
+		for _, video := range videos {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			err := storageService.CopyVideoToBackup(ctx, video.UUID)
+			cancel()
+			if err != nil {
+				log.Printf("Error replicating media for %s: %v", video.UUID, err)
+				continue
+			}
+			if err := videoService.MarkAssetsReplicated(video.UUID); err != nil {
+				log.Printf("Error marking media replicated for %s: %v", video.UUID, err)
+			}
+		}
+	}
+	replicate()
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		replicate()
+	}
+}
+
 func performCleanup(videoService *services.VideoService, storageService *storage.StorageService, auditService *services.AuditService) {
 	log.Println("Starting cleanup process...")
 
@@ -146,6 +275,27 @@ func performCleanup(videoService *services.VideoService, storageService *storage
 	}
 	cancel()
 
+	expiredCtx, expiredCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	if err := storageService.DeleteObjectsBefore(expiredCtx, "source/", time.Now().AddDate(0, 0, -7)); err != nil {
+		log.Printf("Error cleaning expired source objects: %v", err)
+	}
+	expiredCancel()
+
+	rejectedVideos, err := videoService.GetRejectedVideosBefore(time.Now().AddDate(0, 0, -7), 20)
+	if err != nil {
+		log.Printf("Error loading expired rejected videos: %v", err)
+	}
+	for _, video := range rejectedVideos {
+		if err := videoService.DeleteVideo(video.UUID); err != nil {
+			log.Printf("Error deleting expired rejected video %s: %v", video.UUID, err)
+			continue
+		}
+		_ = videoService.AddDeletionRecord(video.UUID, "Rejected video retention expired")
+		if err := storageService.DeleteVideoAssets(context.Background(), video.UUID); err != nil {
+			log.Printf("Error deleting rejected video assets %s: %v", video.UUID, err)
+		}
+	}
+
 	// Get videos marked for deletion
 	records, err := videoService.GetDeletionRecords(50) // Process up to 50 at a time
 	if err != nil {
@@ -155,7 +305,7 @@ func performCleanup(videoService *services.VideoService, storageService *storage
 
 	for _, record := range records {
 		// Delete physical file
-		err := storageService.DeleteVideo(record.VideoUUID)
+		err := storageService.DeleteVideoAssets(context.Background(), record.VideoUUID)
 		if err != nil {
 			log.Printf("Error deleting video file %s: %v", record.VideoUUID, err)
 			continue

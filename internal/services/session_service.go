@@ -25,16 +25,24 @@ func NewSessionService() *SessionService {
 	}
 }
 
-// CreateSession 记录一次登录会话，过期时间与访问令牌保持一致。
-func (s *SessionService) CreateSession(userID uint, sessionID string) error {
+// CreateSession 记录一次登录会话。ExpiresAt 跟随刷新令牌有效期，
+// 访问令牌本身只有 15 分钟，由 JWT exp 控制。
+func (s *SessionService) CreateSession(userID uint, sessionID, refreshToken, userAgent, clientIP string) error {
 	if sessionID == "" {
 		return apperrors.BadRequestf("session id is required")
 	}
+	if refreshToken == "" {
+		return apperrors.BadRequestf("refresh token is required")
+	}
 
 	session := &models.Session{
-		UUID:      sessionID,
-		UserID:    userID,
-		ExpiresAt: time.Now().Add(auth.AccessTokenTTL).Unix(),
+		UUID:             sessionID,
+		UserID:           userID,
+		RefreshTokenHash: auth.HashRefreshToken(refreshToken),
+		LastRotatedAt:    time.Now(),
+		UserAgentHash:    auth.HashRefreshToken(userAgent),
+		IPHash:           auth.HashRefreshToken(clientIP),
+		ExpiresAt:        time.Now().Add(auth.RefreshTokenTTL).Unix(),
 	}
 
 	if err := s.db.Create(session).Error; err != nil {
@@ -42,6 +50,52 @@ func (s *SessionService) CreateSession(userID uint, sessionID string) error {
 	}
 
 	return nil
+}
+
+// RotateRefreshToken 原子轮换刷新密钥。已轮换过的旧密钥再次出现视为重放，
+// 立即吊销整个会话，避免被窃取的刷新令牌长期使用。
+func (s *SessionService) RotateRefreshToken(sessionID, presentedToken string) (string, error) {
+	var session models.Session
+	result := s.db.Where("uuid = ?", sessionID).First(&session)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return "", apperrors.Unauthorizedf("refresh session is not valid")
+	}
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to load refresh session: %w", result.Error)
+	}
+	if session.ExpiresAt > 0 && session.ExpiresAt < time.Now().Unix() {
+		return "", apperrors.Unauthorizedf("refresh session has expired")
+	}
+
+	presentedHash := auth.HashRefreshToken(presentedToken)
+	if auth.EqualTokenHash(presentedHash, session.PreviousTokenHash) {
+		_ = s.RevokeSession(sessionID)
+		return "", apperrors.Unauthorizedf("refresh token replay detected")
+	}
+	if !auth.EqualTokenHash(presentedHash, session.RefreshTokenHash) {
+		return "", apperrors.Unauthorizedf("refresh token is invalid")
+	}
+
+	newToken, newHash, err := auth.GenerateRefreshToken()
+	if err != nil {
+		return "", err
+	}
+	now := time.Now()
+	update := s.db.Model(&models.Session{}).
+		Where("uuid = ? AND refresh_token_hash = ?", sessionID, session.RefreshTokenHash).
+		Updates(map[string]interface{}{
+			"previous_token_hash": session.RefreshTokenHash,
+			"refresh_token_hash":  newHash,
+			"last_rotated_at":     now,
+			"updated_at":          now,
+		})
+	if update.Error != nil {
+		return "", fmt.Errorf("failed to rotate refresh token: %w", update.Error)
+	}
+	if update.RowsAffected == 0 {
+		return "", apperrors.Unauthorizedf("refresh token was already rotated")
+	}
+	return newToken, nil
 }
 
 // ValidateSession 校验会话存在且未过期，供鉴权中间件逐请求调用。
@@ -64,6 +118,22 @@ func (s *SessionService) ValidateSession(sessionID string, userID uint) error {
 	}
 
 	return nil
+}
+
+// GetSessionUserID 返回有效刷新会话对应的用户。
+func (s *SessionService) GetSessionUserID(sessionID string) (uint, error) {
+	var session models.Session
+	result := s.db.Where("uuid = ?", sessionID).First(&session)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return 0, apperrors.Unauthorizedf("refresh session is not valid")
+	}
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to load refresh session: %w", result.Error)
+	}
+	if session.ExpiresAt > 0 && session.ExpiresAt < time.Now().Unix() {
+		return 0, apperrors.Unauthorizedf("refresh session has expired")
+	}
+	return session.UserID, nil
 }
 
 // RevokeSession 吊销单个会话（登出）。会话已不存在时视为成功，保证登出幂等。

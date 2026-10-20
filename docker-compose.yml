@@ -61,6 +61,7 @@ services:
       context: .
       dockerfile: Dockerfile.apiserver
     container_name: video_server_api
+    user: "0:0"
     restart: always
     depends_on:
       mysql:
@@ -81,6 +82,16 @@ services:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       - STREAM_TOKEN_TTL=${STREAM_TOKEN_TTL:-7200}
+      - ACCESS_TOKEN_TTL=${ACCESS_TOKEN_TTL:-900}
+      - REFRESH_TOKEN_TTL=${REFRESH_TOKEN_TTL:-2592000}
+      - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
+      - AUTH_COOKIE_DOMAIN=${AUTH_COOKIE_DOMAIN:-}
+      - VIDEO_MODERATION_REQUIRED=${VIDEO_MODERATION_REQUIRED:-false}
+      - USER_VIDEO_QUOTA=${USER_VIDEO_QUOTA:-100}
+      - USER_STORAGE_QUOTA_BYTES=${USER_STORAGE_QUOTA_BYTES:-10737418240}
+      - USER_DAILY_UPLOAD_LIMIT=${USER_DAILY_UPLOAD_LIMIT:-20}
+      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}
+      - DB_LOG_LEVEL=${DB_LOG_LEVEL:-warn}
       - METRICS_TOKEN=${METRICS_TOKEN:-}
       - STORAGE_VIDEO_DIR=/app/storage/videos
       - STORAGE_TEMP_DIR=/app/storage/temp
@@ -94,10 +105,13 @@ services:
       context: .
       dockerfile: Dockerfile.scheduler
     container_name: video_server_scheduler
+    user: "0:0"
     restart: always
     depends_on:
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_started
       migrate:
         condition: service_completed_successfully
     ports:
@@ -108,6 +122,7 @@ services:
       - DB_USER=video_user
       - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - DB_NAME=video_server
+      - REDIS_ADDR=redis:6379
       - METRICS_TOKEN=${METRICS_TOKEN:-}
       - AUDIT_RETENTION_DAYS=${AUDIT_RETENTION_DAYS:-30}
       - STORAGE_VIDEO_DIR=/app/storage/videos
@@ -122,6 +137,7 @@ services:
       context: .
       dockerfile: Dockerfile.transcode-worker
     container_name: video_server_transcode_worker
+    user: "0:0"
     restart: always
     depends_on:
       mysql:
@@ -141,6 +157,9 @@ services:
       - TRANSCODE_MAX_RETRIES=${TRANSCODE_MAX_RETRIES:-3}
       - TRANSCODE_VISIBILITY_TIMEOUT=${TRANSCODE_VISIBILITY_TIMEOUT:-30m}
       - TRANSCODE_RECLAIM_INTERVAL=${TRANSCODE_RECLAIM_INTERVAL:-1m}
+      - VIDEO_MODERATION_REQUIRED=${VIDEO_MODERATION_REQUIRED:-false}
+      - MALWARE_SCAN_ENABLED=${MALWARE_SCAN_ENABLED:-false}
+      - CLAMAV_HOST=${CLAMAV_HOST:-}
       - STORAGE_VIDEO_DIR=/app/storage/videos
       - STORAGE_TEMP_DIR=/app/storage/temp
     networks:
@@ -158,7 +177,7 @@ services:
       - api-server
     ports:
       # 主机端口可配置：部分 Windows/WSL2 环境会保留 3000/3001 等端口
-      - "${FRONTEND_PORT:-3000}:80"
+      - "${FRONTEND_PORT:-3000}:8080"
     networks:
       - video_network
     environment:
@@ -192,13 +211,14 @@ services:
       - "9093:9093"
     environment:
       - ALERTMANAGER_SMTP_PASSWORD=${ALERTMANAGER_SMTP_PASSWORD:-}
+      - ALERT_EMAIL_TO=${ALERT_EMAIL_TO:-lixiandea@163.com}
     volumes:
       - ./deploy/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager_data:/alertmanager
     # 镜像没有 envsubst：启动时用 sed 把授权码写进临时配置，避免明文入库。
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - 'sed "s|__SMTP_PASSWORD__|$${ALERTMANAGER_SMTP_PASSWORD}|g" /etc/alertmanager/alertmanager.yml > /tmp/alertmanager.yml && exec /bin/alertmanager --config.file=/tmp/alertmanager.yml --storage.path=/alertmanager'
+      - 'sed -e "s|__SMTP_PASSWORD__|$${ALERTMANAGER_SMTP_PASSWORD}|g" -e "s|__ALERT_EMAIL_TO__|$${ALERT_EMAIL_TO}|g" /etc/alertmanager/alertmanager.yml > /tmp/alertmanager.yml && exec /bin/alertmanager --config.file=/tmp/alertmanager.yml --storage.path=/alertmanager'
     networks:
       - video_network
 

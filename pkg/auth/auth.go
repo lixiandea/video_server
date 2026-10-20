@@ -1,6 +1,11 @@
 package auth
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -40,9 +45,24 @@ const (
 // 媒体元素无法携带请求头，令牌只能走 URL，因此必须短时效且绑定单个视频。
 const DefaultStreamTokenTTL = 2 * time.Hour
 
-// AccessTokenTTL 访问令牌有效期。会话记录的过期时间与之保持一致，
-// 避免出现「令牌还有效但会话已过期」或反之的窗口。
-const AccessTokenTTL = 24 * time.Hour
+// AccessTokenTTL 与 RefreshTokenTTL 可通过 InitTokenTTL 在生产环境收紧。
+var (
+	AccessTokenTTL  = 15 * time.Minute
+	RefreshTokenTTL = 30 * 24 * time.Hour
+)
+
+// InitTokenTTL 配置访问令牌与刷新会话有效期。
+func InitTokenTTL(accessTTL, refreshTTL time.Duration) error {
+	if accessTTL <= 0 || refreshTTL <= 0 {
+		return errors.New("token TTLs must be positive")
+	}
+	if refreshTTL <= accessTTL {
+		return errors.New("refresh token TTL must exceed access token TTL")
+	}
+	AccessTokenTTL = accessTTL
+	RefreshTokenTTL = refreshTTL
+	return nil
+}
 
 type Claims struct {
 	UserID    uint   `json:"user_id"`
@@ -162,4 +182,28 @@ func ParseStreamToken(tokenStr, videoID string) (*Claims, error) {
 // GenerateSessionID creates a unique session identifier
 func GenerateSessionID() string {
 	return uuid.New().String()
+}
+
+// GenerateRefreshToken 生成不可预测的刷新密钥，并返回仅用于数据库存储的哈希。
+func GenerateRefreshToken() (string, string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", "", fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	return token, HashRefreshToken(token), nil
+}
+
+// HashRefreshToken 返回刷新密钥的 SHA-256 十六进制摘要。
+func HashRefreshToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+// EqualTokenHash 使用常量时间比较，避免通过响应时间推断哈希。
+func EqualTokenHash(left, right string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(left), []byte(right)) == 1
 }

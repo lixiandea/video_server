@@ -17,6 +17,15 @@
             <i class="bi bi-exclamation-triangle"></i> 视频转码失败，请重新上传或删除。
           </div>
 
+          <div v-else-if="isPendingReview" class="alert alert-info" role="alert">
+            <i class="bi bi-shield-check"></i> 视频已转码完成，正在等待管理员审核。
+          </div>
+
+          <div v-else-if="isRejected" class="alert alert-danger" role="alert">
+            <i class="bi bi-x-circle"></i> 视频审核未通过。
+            <span v-if="currentVideo?.review_note">原因：{{ currentVideo.review_note }}</span>
+          </div>
+
           <div v-else class="video-player-section mb-4">
             <VideoPlayer
               v-if="videoUrl"
@@ -189,6 +198,8 @@ const videoId = computed(() => route.params.id)
 const currentVideo = computed(() => videoStore.currentVideo)
 const isProcessing = computed(() => currentVideo.value?.status === 'processing')
 const isFailed = computed(() => currentVideo.value?.status === 'failed')
+const isPendingReview = computed(() => currentVideo.value?.status === 'pending_review')
+const isRejected = computed(() => currentVideo.value?.status === 'rejected')
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const isOwner = computed(() => {
   return isLoggedIn.value && currentVideo.value?.author_id === userStore.user?.id
@@ -231,6 +242,9 @@ async function loadVideoDetail() {
     isLiked.value = !!data.liked
     if (data.status === 'processing') {
       scheduleProcessingPoll()
+      return
+    }
+    if (data.status === 'pending_review' || data.status === 'rejected') {
       return
     }
     await loadStreamUrl()

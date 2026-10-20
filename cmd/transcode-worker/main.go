@@ -15,12 +15,16 @@ import (
 	"github.com/lixiandea/video_server/pkg/logging"
 	"github.com/lixiandea/video_server/pkg/queue"
 	"github.com/lixiandea/video_server/pkg/redis"
+	"github.com/lixiandea/video_server/pkg/storage"
 	"go.uber.org/zap"
 )
 
 func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
+	if err := cfg.ValidateProduction(); err != nil {
+		log.Fatal("Unsafe production configuration: ", err)
+	}
 
 	// Initialize logger
 	if err := logging.InitLogger("info", "stdout"); err != nil {
@@ -38,6 +42,8 @@ func main() {
 		DialTimeout:  time.Duration(cfg.Redis.DialTimeout) * time.Second,
 		ReadTimeout:  time.Duration(cfg.Redis.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(cfg.Redis.WriteTimeout) * time.Second,
+		TLSEnabled:   cfg.Redis.TLSEnabled,
+		TLSCAPath:    cfg.Redis.TLSCAPath,
 	}
 
 	if err := redis.InitRedis(redisCfg); err != nil {
@@ -55,7 +61,11 @@ func main() {
 	}
 
 	// Initialize transcode service
-	transcodeService := services.NewTranscodeService(taskQueue, cfg.Storage.VideoDir)
+	storageService, err := storage.NewStorageService(&cfg.Storage)
+	if err != nil {
+		log.Fatalf("Failed to initialize storage: %v", err)
+	}
+	transcodeService := services.NewTranscodeService(taskQueue, storageService, cfg.Server.VideoModerationRequired)
 
 	// Get concurrency from config or default to 2
 	concurrency := 2

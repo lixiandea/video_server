@@ -13,6 +13,7 @@ server:
   cors:
     allowed_origins:  # Only listed origins are allowed; "*" disables credentials
       - "http://localhost:3000"
+      - "http://localhost:8000"
 
 database:
   host: "localhost"  # Will be overwritten by environment variable in Docker

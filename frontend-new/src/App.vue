@@ -46,6 +46,9 @@
               <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
                 <li><router-link class="dropdown-item" to="/profile">个人中心</router-link></li>
                 <li><router-link class="dropdown-item" to="/upload">上传视频</router-link></li>
+                <li v-if="userStore.user?.role === 'admin'">
+                  <router-link class="dropdown-item" to="/admin/review">视频审核</router-link>
+                </li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item" href="#" @click.prevent="handleLogout">退出登录</a></li>
               </ul>
@@ -84,7 +87,7 @@ const router = useRouter()
 const userStore = useUserStore()
 
 onMounted(() => {
-  userStore.checkAuth()
+  userStore.initializeSession()
 })
 
 const handleLogout = async () => {

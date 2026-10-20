@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"crypto/subtle"
 	"net"
 	"net/http"
 	"strconv"
@@ -187,6 +188,42 @@ var (
 			Help: "Total number of failed authentications",
 		},
 	)
+
+	uploadRejectedTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "upload_rejected_total",
+			Help: "Total upload requests rejected by policy",
+		},
+		[]string{"reason"},
+	)
+
+	reviewBacklog = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "video_review_backlog",
+			Help: "Number of videos waiting for moderation",
+		},
+	)
+
+	mediaReplicationPending = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "media_replication_pending",
+			Help: "Number of active videos waiting for backup replication",
+		},
+	)
+
+	mediaReplicationLag = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "media_replication_lag_seconds",
+			Help: "Age of the oldest unreplicated active video",
+		},
+	)
+
+	auditDroppedTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "audit_logs_dropped_total",
+			Help: "Audit records dropped because the async queue was full",
+		},
+	)
 )
 
 // MetricsMiddleware collects HTTP metrics
@@ -235,7 +272,9 @@ func RegisterMetricsEndpoint(r *gin.Engine, token string) {
 
 	r.GET("/metrics", func(c *gin.Context) {
 		if token != "" {
-			if c.GetHeader("Authorization") != "Bearer "+token {
+			expected := "Bearer " + token
+			provided := c.GetHeader("Authorization")
+			if len(expected) != len(provided) || subtle.ConstantTimeCompare([]byte(expected), []byte(provided)) != 1 {
 				c.Header("WWW-Authenticate", "Bearer")
 				utils.Fail(c, http.StatusUnauthorized, "Metrics token required")
 				return
@@ -300,6 +339,27 @@ func IncAuthSuccess() {
 
 func IncAuthFailure() {
 	authFailureTotal.Inc()
+}
+
+func IncUploadRejected(reason string) {
+	uploadRejectedTotal.WithLabelValues(reason).Inc()
+}
+
+func SetReviewBacklog(count int64) {
+	reviewBacklog.Set(float64(count))
+}
+
+func SetMediaReplicationStats(pending int64, oldest time.Time) {
+	mediaReplicationPending.Set(float64(pending))
+	if pending > 0 && !oldest.IsZero() {
+		mediaReplicationLag.Set(time.Since(oldest).Seconds())
+	} else {
+		mediaReplicationLag.Set(0)
+	}
+}
+
+func IncAuditDropped() {
+	auditDroppedTotal.Inc()
 }
 
 func SetDBConnections(count float64) {

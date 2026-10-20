@@ -13,29 +13,34 @@ import (
 	"github.com/lixiandea/video_server/pkg/database"
 	"github.com/lixiandea/video_server/pkg/logging"
 	"github.com/lixiandea/video_server/pkg/queue"
+	"github.com/lixiandea/video_server/pkg/storage"
 	"go.uber.org/zap"
 )
 
 // TranscodeService 转码服务
 type TranscodeService struct {
-	queue             *queue.TaskQueue
-	outputDir         string
-	workerName        string
-	videoService      *VideoService
-	maxRetries        int
-	visibilityTimeout time.Duration
-	reclaimInterval   time.Duration
+	queue              *queue.TaskQueue
+	outputDir          string
+	workerName         string
+	videoService       *VideoService
+	maxRetries         int
+	visibilityTimeout  time.Duration
+	reclaimInterval    time.Duration
+	moderationRequired bool
+	storage            *storage.StorageService
 }
 
 // NewTranscodeService 创建转码服务
-func NewTranscodeService(q *queue.TaskQueue, outputDir string) *TranscodeService {
+func NewTranscodeService(q *queue.TaskQueue, storageService *storage.StorageService, moderationRequired bool) *TranscodeService {
 	return &TranscodeService{
-		queue:             q,
-		outputDir:         outputDir,
-		workerName:        fmt.Sprintf("transcoder-%d", time.Now().UnixNano()),
-		maxRetries:        envInt("TRANSCODE_MAX_RETRIES", 3),
-		visibilityTimeout: envDuration("TRANSCODE_VISIBILITY_TIMEOUT", queue.DefaultQueueConfig.VisibilityTimeout),
-		reclaimInterval:   envDuration("TRANSCODE_RECLAIM_INTERVAL", time.Minute),
+		queue:              q,
+		outputDir:          storageService.TempDir(),
+		workerName:         fmt.Sprintf("transcoder-%d", time.Now().UnixNano()),
+		maxRetries:         envInt("TRANSCODE_MAX_RETRIES", 3),
+		visibilityTimeout:  envDuration("TRANSCODE_VISIBILITY_TIMEOUT", queue.DefaultQueueConfig.VisibilityTimeout),
+		reclaimInterval:    envDuration("TRANSCODE_RECLAIM_INTERVAL", time.Minute),
+		moderationRequired: moderationRequired,
+		storage:            storageService,
 	}
 }
 
@@ -69,6 +74,7 @@ func (s *TranscodeService) StartWorker(ctx context.Context, concurrency int) err
 
 	// 周期性回收崩溃 worker 遗留的 pending 消息
 	go s.reclaimLoop(ctx)
+	s.recoverPersistentTasks(ctx)
 
 	// 启动多个协程并发处理
 	for i := 0; i < concurrency; i++ {
@@ -90,6 +96,7 @@ func (s *TranscodeService) reclaimLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			s.recoverPersistentTasks(ctx)
 			tasks, err := s.queue.ReclaimStaleTasks(ctx, s.visibilityTimeout, 10)
 			if err != nil {
 				logging.GetLogger().Warn("Failed to reclaim stale transcode tasks", zap.Error(err))
@@ -102,6 +109,32 @@ func (s *TranscodeService) reclaimLoop(ctx context.Context) {
 				s.processTask(ctx, task, 0)
 			}
 		}
+	}
+}
+
+// recoverPersistentTasks 从数据库恢复 Redis 消息丢失或 Worker 启动前积压的任务。
+func (s *TranscodeService) recoverPersistentTasks(ctx context.Context) {
+	if s.videoService == nil {
+		s.videoService = NewVideoService()
+	}
+	tasks, err := s.videoService.LoadRecoverableTranscodeTasks(time.Now().Add(-s.visibilityTimeout), 20)
+	if err != nil {
+		logging.GetLogger().Warn("Failed to load recoverable transcode tasks", zap.Error(err))
+		return
+	}
+	for _, task := range tasks {
+		if err := s.queue.EnqueueTranscodeTask(ctx, task); err != nil {
+			logging.GetLogger().Warn("Failed to recover transcode task",
+				zap.String("task_id", task.TaskID),
+				zap.Error(err))
+			continue
+		}
+		if err := s.videoService.SaveTranscodeTask(task); err != nil {
+			logging.GetLogger().Warn("Failed to update recovered task", zap.Error(err))
+		}
+		logging.GetLogger().Info("Recovered transcode task from database",
+			zap.String("task_id", task.TaskID),
+			zap.String("video_id", task.VideoID))
 	}
 }
 
@@ -152,6 +185,7 @@ func (s *TranscodeService) processTask(ctx context.Context, task *queue.Transcod
 	now := time.Now()
 	task.StartedAt = &now
 	s.queue.UpdateTaskStatus(ctx, task)
+	s.persistTaskState(task)
 
 	// 执行转码并落库产物路径
 	outputPath, hlsPath, err := s.executeTranscode(ctx, task)
@@ -175,8 +209,10 @@ func (s *TranscodeService) processTask(ctx context.Context, task *queue.Transcod
 				completedAt := time.Now()
 				task.CompletedAt = &completedAt
 				s.queue.UpdateTaskStatus(ctx, task)
+				s.persistTaskState(task)
 				s.markVideoFailed(task.VideoID)
 			} else {
+				s.persistTaskState(task)
 				logger.Warn("Transcode task requeued for retry",
 					zap.Int("retry", task.Retries),
 					zap.Int("max_retries", s.maxRetries))
@@ -187,6 +223,7 @@ func (s *TranscodeService) processTask(ctx context.Context, task *queue.Transcod
 			completedAt := time.Now()
 			task.CompletedAt = &completedAt
 			s.queue.UpdateTaskStatus(ctx, task)
+			s.persistTaskState(task)
 			s.markVideoFailed(task.VideoID)
 		}
 	} else {
@@ -196,6 +233,7 @@ func (s *TranscodeService) processTask(ctx context.Context, task *queue.Transcod
 		completedAt := time.Now()
 		task.CompletedAt = &completedAt
 		s.queue.UpdateTaskStatus(ctx, task)
+		s.persistTaskState(task)
 	}
 
 	// 无论成功、重试还是永久失败，原消息都必须确认，
@@ -204,6 +242,20 @@ func (s *TranscodeService) processTask(ctx context.Context, task *queue.Transcod
 		if err := s.queue.AcknowledgeTask(ctx, s.queue.GetQueueName(), task.MessageID); err != nil {
 			logger.Warn("Failed to acknowledge task message", zap.Error(err))
 		}
+	}
+}
+
+func (s *TranscodeService) persistTaskState(task *queue.TranscodeTask) {
+	if database.DB == nil {
+		return
+	}
+	if s.videoService == nil {
+		s.videoService = NewVideoService()
+	}
+	if err := s.videoService.SaveTranscodeTask(task); err != nil {
+		logging.GetLogger().Warn("Failed to persist task state",
+			zap.String("task_id", task.TaskID),
+			zap.Error(err))
 	}
 }
 
@@ -217,20 +269,72 @@ func (s *TranscodeService) persistResult(task *queue.TranscodeTask, outputPath, 
 		s.videoService = NewVideoService()
 	}
 
-	updates := map[string]interface{}{"file_path": outputPath}
-	if hlsPath != "" {
-		updates["hls_path"] = hlsPath
-	}
+	updates := map[string]interface{}{}
 	if info, err := os.Stat(outputPath); err == nil {
 		updates["size"] = info.Size()
 	}
 	s.extractMetadata(outputPath, updates)
 
+	storedOutputPath := outputPath
+	storedHLSPath := hlsPath
+	if s.storage.IsObjectStorage() {
+		outputKey := "videos/" + task.VideoID + "/" + filepath.Base(outputPath)
+		if err := s.storage.UploadFile(context.Background(), outputKey, outputPath, "video/mp4"); err != nil {
+			return err
+		}
+		storedOutputPath = outputKey
+
+		hlsPrefix := "videos/" + task.VideoID + "/hls"
+		if err := s.storage.UploadDir(context.Background(), hlsPrefix, filepath.Dir(hlsPath)); err != nil {
+			return err
+		}
+		storedHLSPath = hlsPrefix + "/index.m3u8"
+
+		if coverPath, ok := updates["cover_path"].(string); ok {
+			coverKey := "videos/" + task.VideoID + "/" + filepath.Base(coverPath)
+			if err := s.storage.UploadFile(context.Background(), coverKey, coverPath, "image/jpeg"); err != nil {
+				return err
+			}
+			for _, width := range coverVariantWidths {
+				variant := CoverVariantPath(coverPath, width)
+				if _, err := os.Stat(variant); err != nil {
+					continue
+				}
+				variantKey := "videos/" + task.VideoID + "/" + filepath.Base(variant)
+				if err := s.storage.UploadFile(context.Background(), variantKey, variant, "image/jpeg"); err != nil {
+					return err
+				}
+			}
+			updates["cover_path"] = coverKey
+		}
+		defer os.RemoveAll(filepath.Dir(hlsPath))
+		defer os.Remove(outputPath)
+	}
+	updates["file_path"] = storedOutputPath
+	if storedHLSPath != "" {
+		updates["hls_path"] = storedHLSPath
+	}
+
 	if err := s.videoService.UpdateVideo(task.VideoID, updates); err != nil {
 		return fmt.Errorf("failed to persist transcode result: %w", err)
 	}
-	if err := s.videoService.SetVideoStatus(task.VideoID, "active"); err != nil {
-		return fmt.Errorf("failed to mark video active: %w", err)
+	finalStatus := "active"
+	if s.moderationRequired {
+		finalStatus = "pending_review"
+	}
+	if err := s.videoService.SetVideoStatus(task.VideoID, finalStatus); err != nil {
+		return fmt.Errorf("failed to mark video %s: %w", finalStatus, err)
+	}
+	if s.storage.IsObjectStorage() {
+		backupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		if err := s.storage.CopyVideoToBackup(backupCtx, task.VideoID); err != nil {
+			logging.GetLogger().Warn("Immediate media backup failed; scheduler will retry",
+				zap.String("video_id", task.VideoID),
+				zap.Error(err))
+		} else if err := s.videoService.MarkAssetsReplicated(task.VideoID); err != nil {
+			logging.GetLogger().Warn("Failed to record media replication", zap.Error(err))
+		}
+		cancel()
 	}
 
 	return nil
@@ -372,9 +476,15 @@ func extractCover(sourcePath, coverPath string) error {
 
 // executeTranscode 执行 MP4 转码并打包多码率 HLS，返回 (MP4 路径, master playlist 路径)。
 func (s *TranscodeService) executeTranscode(ctx context.Context, task *queue.TranscodeTask) (string, string, error) {
-	// 检查源文件是否存在
-	if _, err := os.Stat(task.SourcePath); os.IsNotExist(err) {
-		return "", "", fmt.Errorf("source file not found: %s", task.SourcePath)
+	sourcePath, err := s.storage.Materialize(ctx, task.SourcePath)
+	if err != nil {
+		return "", "", fmt.Errorf("source file not found: %s: %w", task.SourcePath, err)
+	}
+	if s.storage.IsObjectStorage() {
+		defer os.Remove(sourcePath)
+	}
+	if err := scanForMalware(ctx, sourcePath); err != nil {
+		return "", "", err
 	}
 
 	// 生成输出文件名
@@ -391,7 +501,7 @@ func (s *TranscodeService) executeTranscode(ctx context.Context, task *queue.Tra
 	switch task.Quality {
 	case "low":
 		ffmpegArgs = []string{
-			"-i", task.SourcePath,
+			"-i", sourcePath,
 			"-c:v", "libx264",
 			"-b:v", "500k",
 			"-maxrate", "500k",
@@ -404,7 +514,7 @@ func (s *TranscodeService) executeTranscode(ctx context.Context, task *queue.Tra
 		}
 	case "medium":
 		ffmpegArgs = []string{
-			"-i", task.SourcePath,
+			"-i", sourcePath,
 			"-c:v", "libx264",
 			"-b:v", "1500k",
 			"-maxrate", "1500k",
@@ -417,7 +527,7 @@ func (s *TranscodeService) executeTranscode(ctx context.Context, task *queue.Tra
 		}
 	case "high":
 		ffmpegArgs = []string{
-			"-i", task.SourcePath,
+			"-i", sourcePath,
 			"-c:v", "libx264",
 			"-b:v", "3000k",
 			"-maxrate", "3000k",
@@ -430,7 +540,7 @@ func (s *TranscodeService) executeTranscode(ctx context.Context, task *queue.Tra
 		}
 	default:
 		ffmpegArgs = []string{
-			"-i", task.SourcePath,
+			"-i", sourcePath,
 			"-c:v", "libx264",
 			"-crf", "23",
 			"-c:a", "aac",
@@ -457,12 +567,34 @@ func (s *TranscodeService) executeTranscode(ctx context.Context, task *queue.Tra
 	// 更新进度
 	task.Progress = 100
 
-	hlsPath, err := s.packHLS(ctx, task.SourcePath, task.VideoID)
+	hlsPath, err := s.packHLS(ctx, sourcePath, task.VideoID)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to package HLS: %w", err)
 	}
 
 	return outputPath, hlsPath, nil
+}
+
+func scanForMalware(ctx context.Context, path string) error {
+	if os.Getenv("MALWARE_SCAN_ENABLED") != "true" {
+		return nil
+	}
+	scanner, err := exec.LookPath("clamdscan")
+	if err != nil {
+		return fmt.Errorf("malware scanning enabled but clamdscan is unavailable: %w", err)
+	}
+	args := []string{"--no-summary"}
+	if host := os.Getenv("CLAMAV_HOST"); host != "" {
+		args = append(args, "--host="+host)
+	}
+	args = append(args, path)
+	scanCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	output, err := exec.CommandContext(scanCtx, scanner, args...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("malware scan failed: %w, output: %s", err, string(output))
+	}
+	return nil
 }
 
 // hlsRendition 描述一路 HLS 码率。

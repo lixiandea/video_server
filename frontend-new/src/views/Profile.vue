@@ -48,6 +48,29 @@
                     placeholder="选填，最多 200 字"
                   ></textarea>
                 </div>
+
+                <div class="mb-3">
+                  <label for="currentPassword" class="form-label">当前密码</label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    id="currentPassword"
+                    v-model="currentPassword"
+                    placeholder="修改用户名、邮箱或密码时必填"
+                  >
+                </div>
+
+                <div class="mb-3">
+                  <label for="newPassword" class="form-label">新密码（选填）</label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    id="newPassword"
+                    v-model="newPassword"
+                    minlength="6"
+                    placeholder="留空表示不修改"
+                  >
+                </div>
                 
                 <div class="d-flex gap-2">
                   <button type="submit" class="btn btn-primary" :disabled="loading">
@@ -111,6 +134,22 @@
               </div>
             </div>
           </div>
+
+          <div class="card shadow mt-4 border-danger">
+            <div class="card-body">
+              <h5 class="text-danger">注销账号</h5>
+              <p class="small text-muted">账号注销将下架视频、评论并清理会话与推荐行为，操作不可恢复。</p>
+              <input
+                type="password"
+                class="form-control mb-2"
+                v-model="deletePassword"
+                placeholder="输入当前密码确认"
+              >
+              <button class="btn btn-outline-danger w-100" :disabled="deleting" @click="handleDeleteAccount">
+                永久注销账号
+              </button>
+            </div>
+          </div>
         </div>
         
         <div class="col-lg-4">
@@ -159,8 +198,12 @@ const profile = reactive({
 })
 
 const loading = ref(false)
+const deleting = ref(false)
 const error = ref(null)
 const success = ref(false)
+const currentPassword = ref('')
+const newPassword = ref('')
+const deletePassword = ref('')
 const myVideos = ref([])
 const videosLoading = ref(false)
 
@@ -202,15 +245,36 @@ async function handleUpdate() {
     await userApi.updateProfile({
       username: profile.username,
       email: profile.email,
-      bio: profile.bio
+      bio: profile.bio,
+      current_password: currentPassword.value,
+      password: newPassword.value || undefined
     })
     success.value = true
-    userStore.user = { ...userStore.user, username: profile.username }
-    localStorage.setItem('user', JSON.stringify(userStore.user))
+    currentPassword.value = ''
+    newPassword.value = ''
+    userStore.updateUser({ username: profile.username })
   } catch (err) {
     error.value = err.response?.data?.message || err.response?.data?.error || '保存失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function handleDeleteAccount() {
+  if (!deletePassword.value) {
+    error.value = '请输入当前密码'
+    return
+  }
+  if (!confirm('确定永久注销账号？此操作不可恢复。')) return
+  deleting.value = true
+  try {
+    await userApi.deleteAccount(deletePassword.value)
+    await userStore.logout()
+    router.push('/login')
+  } catch (err) {
+    error.value = err.response?.data?.error || '注销账号失败'
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -220,6 +284,8 @@ function goToVideo(id) {
 
 function statusLabel(status) {
   if (status === 'processing') return '转码中'
+  if (status === 'pending_review') return '待审核'
+  if (status === 'rejected') return '审核未通过'
   if (status === 'failed') return '转码失败'
   return ''
 }

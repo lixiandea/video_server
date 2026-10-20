@@ -11,7 +11,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // 所有浏览器请求都来自本机同一 IP；并行 worker 会触发应用自身的限流，导致误报。
+  workers: 1,
   reporter: process.env.CI
     ? [['github'], ['list'], ['html', { open: 'never' }]]
     : [['html', { open: 'never' }], ['list']],

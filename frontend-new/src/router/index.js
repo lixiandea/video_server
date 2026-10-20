@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '@/views/Home.vue'
+import { useUserStore } from '@/stores/user'
 
 const routes = [
   {
@@ -49,6 +50,12 @@ const routes = [
     name: 'Upload',
     component: () => import('@/views/Upload.vue'),
     meta: { title: '上传视频', requiresAuth: true }
+  },
+  {
+    path: '/admin/review',
+    name: 'AdminReview',
+    component: () => import('@/views/AdminReview.vue'),
+    meta: { title: '视频审核', requiresAuth: true, requiresAdmin: true }
   }
 ]
 
@@ -64,14 +71,22 @@ const router = createRouter({
   }
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   document.title = `${to.meta.title} - 视频服务器`
-  
-  const token = localStorage.getItem('token')
-  
-  if (to.meta.requiresAuth && !token) {
+
+  const userStore = useUserStore()
+  const needsResolvedAuth = to.meta.requiresAuth || to.meta.requiresAdmin
+  if (needsResolvedAuth && !userStore.initialized) {
+    await userStore.initializeSession()
+  } else if (!userStore.initialized) {
+    userStore.initializeSession()
+  }
+
+  if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     next('/login')
-  } else if (to.meta.requiresGuest && token) {
+  } else if (to.meta.requiresAdmin && userStore.user?.role !== 'admin') {
+    next('/')
+  } else if (to.meta.requiresGuest && userStore.isLoggedIn) {
     next('/')
   } else {
     next()

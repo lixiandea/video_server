@@ -2,6 +2,8 @@ package database
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"fmt"
 	"os"
@@ -15,6 +17,7 @@ import (
 	"github.com/lixiandea/video_server/pkg/tracing"
 	"go.uber.org/zap"
 
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -50,8 +53,26 @@ func connectDelay() time.Duration {
 // Connect 建立数据库连接（带重试与连接池设置），不执行任何建表动作。
 // 供迁移命令与需要「只连接」的调用方使用；InitDatabase 在此之上再执行自动迁移。
 func Connect(cfg *config.DatabaseConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=Local",
-		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name, cfg.Charset)
+	mysqlConfig := mysqldriver.NewConfig()
+	mysqlConfig.User = cfg.User
+	mysqlConfig.Passwd = cfg.Password
+	mysqlConfig.Net = "tcp"
+	mysqlConfig.Addr = fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	mysqlConfig.DBName = cfg.Name
+	mysqlConfig.ParseTime = true
+	mysqlConfig.Loc = time.Local
+	mysqlConfig.Params = map[string]string{"charset": cfg.Charset}
+	if cfg.TLSCAPath != "" {
+		tlsConfig, err := loadTLSConfig(cfg.TLSCAPath)
+		if err != nil {
+			return nil, err
+		}
+		if err := mysqldriver.RegisterTLSConfig("video-server", tlsConfig); err != nil {
+			return nil, fmt.Errorf("failed to register MySQL TLS config: %w", err)
+		}
+		mysqlConfig.TLSConfig = "video-server"
+	}
+	dsn := mysqlConfig.FormatDSN()
 
 	attempts := connectAttempts()
 	delay := connectDelay()
@@ -62,9 +83,18 @@ func Connect(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	)
 
 	for attempt := 1; attempt <= attempts; attempt++ {
+		level := logger.Warn
+		switch cfg.LogLevel {
+		case "silent":
+			level = logger.Silent
+		case "error":
+			level = logger.Error
+		case "info":
+			level = logger.Info
+		}
 		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
 			SkipDefaultTransaction: true,
-			Logger:                 logger.Default.LogMode(logger.Info),
+			Logger:                 logger.Default.LogMode(level),
 		})
 		if err == nil {
 			var sqlDB *sql.DB
@@ -97,8 +127,19 @@ func Connect(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	}
 
 	// Optimized connection pool settings
-	sqlDB.SetMaxIdleConns(25)                  // Increased idle connections for better concurrency
-	sqlDB.SetMaxOpenConns(200)                 // Increased max connections for high load
+	maxOpen := cfg.MaxOpenConns
+	if maxOpen <= 0 {
+		maxOpen = 100
+	}
+	maxIdle := cfg.MaxIdleConns
+	if maxIdle <= 0 {
+		maxIdle = 10
+	}
+	if maxIdle > maxOpen {
+		maxIdle = maxOpen
+	}
+	sqlDB.SetMaxIdleConns(maxIdle)
+	sqlDB.SetMaxOpenConns(maxOpen)             // managed databases often cap total connections
 	sqlDB.SetConnMaxLifetime(30 * time.Minute) // Reduced lifetime to prevent stale connections
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)  // Close idle connections after 5 minutes
 
@@ -112,6 +153,21 @@ func Connect(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	)
 
 	return db, nil
+}
+
+func loadTLSConfig(caPath string) (*tls.Config, error) {
+	caPEM, err := os.ReadFile(caPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read database CA certificate: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("database CA certificate contains no valid certificates")
+	}
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    pool,
+	}, nil
 }
 
 // InitDatabase 建立连接并（按配置）执行启动时的自动迁移。
@@ -163,6 +219,7 @@ func migrateSchema(db *gorm.DB) {
 		{"video_likes", &models.VideoLike{}},
 		{"video_views", &models.VideoView{}},
 		{"video_deletion_records", &models.VideoDeletionRecord{}},
+		{"transcode_task_records", &models.TranscodeTaskRecord{}},
 	}
 
 	if release, err := acquireMigrationLock(db); err != nil {

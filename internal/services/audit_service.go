@@ -7,6 +7,7 @@ import (
 
 	"github.com/lixiandea/video_server/internal/models"
 	"github.com/lixiandea/video_server/pkg/logging"
+	"github.com/lixiandea/video_server/pkg/metrics"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -43,6 +44,7 @@ func (s *AuditService) Record(entry models.AuditLog) {
 	select {
 	case s.ch <- entry:
 	default:
+		metrics.IncAuditDropped()
 		logging.GetLogger().Warn("Audit log queue full, dropping entry",
 			zap.String("method", entry.Method),
 			zap.String("path", entry.Path))

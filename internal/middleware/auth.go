@@ -23,6 +23,11 @@ type SessionValidator interface {
 	ValidateSession(sessionID string, userID uint) error
 }
 
+// RoleResolver 返回用户当前角色，供管理员路由逐请求校验。
+type RoleResolver interface {
+	GetUserRole(userID uint) (string, error)
+}
+
 // validateSession 在签名校验通过后追加会话校验。
 // 会话类错误按 401 返回，数据库等故障按 500 返回，避免把故障误报成「令牌无效」。
 func validateSession(sessions SessionValidator, c *gin.Context, claims *auth.Claims) bool {
@@ -77,6 +82,30 @@ func AuthMiddleware(sessions SessionValidator) gin.HandlerFunc {
 		c.Set("username", claims.Username)
 		c.Set("session_id", claims.SessionID)
 
+		c.Next()
+	}
+}
+
+// RequireRole 在 AuthMiddleware 之后校验数据库中的最新角色，
+// 避免角色变更后旧 JWT 在剩余有效期内继续拥有管理员权限。
+func RequireRole(resolver RoleResolver, required string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			utils.Fail(c, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+		role, err := resolver.GetUserRole(userID.(uint))
+		if err != nil {
+			logging.GetLogger().Warn("Failed to resolve user role", zap.Error(err))
+			utils.Fail(c, http.StatusInternalServerError, "Failed to verify permission")
+			return
+		}
+		if role != required {
+			utils.Fail(c, http.StatusForbidden, "Insufficient permission")
+			return
+		}
+		c.Set("role", role)
 		c.Next()
 	}
 }

@@ -140,6 +140,21 @@ func (s *UserService) GetUserByUsername(username string) (*models.User, error) {
 	return &user, nil
 }
 
+func (s *UserService) GetUserRole(userID uint) (string, error) {
+	var user models.User
+	result := s.db.Select("role").First(&user, userID)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return "", apperrors.NotFoundf("user not found")
+	}
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to load user role: %w", result.Error)
+	}
+	if user.Role == "" {
+		return "user", nil
+	}
+	return user.Role, nil
+}
+
 func (s *UserService) UpdateUser(id uint, updates map[string]interface{}) error {
 	result := s.db.Model(&models.User{}).Where("id = ?", id).Updates(updates)
 	if result.Error != nil {
