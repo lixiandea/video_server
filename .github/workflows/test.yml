@@ -219,6 +219,11 @@ jobs:
         ./bin/migrate up
         ./bin/migrate check
 
+    - name: 安装 ffmpeg（播放器 e2e 需要转码）
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq ffmpeg
+
     - name: 后台启动 API server
       run: |
         DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=root \
@@ -231,6 +236,15 @@ jobs:
           sleep 1
         done
         curl -fs http://localhost:8080/health || { echo "API server 未就绪"; cat /tmp/api-server.log; exit 1; }
+
+    - name: 后台启动 transcode worker
+      run: |
+        mkdir -p storage/videos storage/temp
+        DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=root \
+          DB_PASSWORD="$CI_DB_PASSWORD" DB_NAME=video_server_test \
+          REDIS_ADDR=127.0.0.1:6379 \
+          STORAGE_VIDEO_DIR=./storage/videos STORAGE_TEMP_DIR=./storage/temp \
+          ./bin/transcode-worker > /tmp/transcode-worker.log 2>&1 &
 
     - name: 安装前端依赖与 Chromium
       working-directory: frontend-new
@@ -249,3 +263,9 @@ jobs:
         name: playwright-report
         path: frontend-new/playwright-report
         retention-days: 7
+
+    - name: 失败时输出服务日志
+      if: failure()
+      run: |
+        cat /tmp/api-server.log || true
+        cat /tmp/transcode-worker.log || true

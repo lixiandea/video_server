@@ -39,7 +39,6 @@ export default defineConfig(({ mode }) => {
         output: {
           // Vite 8（Rolldown）只接受函数形式的 manualChunks
           manualChunks(id) {
-            if (id.includes('node_modules/video.js')) return 'video-js'
             if (id.includes('node_modules/hls.js')) return 'hls-js'
             if (id.includes('node_modules/vue') ||
                 id.includes('node_modules/@vue') ||

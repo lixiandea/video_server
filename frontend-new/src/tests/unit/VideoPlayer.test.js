@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import VideoPlayer from '@/components/VideoPlayer.vue'
 
@@ -84,12 +85,29 @@ describe('VideoPlayer', () => {
         plugins: [pinia],
       },
       props: {
-        src: 'http://example.com/video.m3u8',
+        // 用 MP4 源避免在 jsdom（无 MSE）里直接进入 HLS 错误分支
+        src: 'http://example.com/video.mp4',
       },
     })
 
     // 初始状态应该是加载中
     expect(wrapper.vm.loading).toBe(true)
+  })
+
+  it('HLS 不可用且提供 MP4 回退时应切换到回退源', async () => {
+    const wrapper = mount(VideoPlayer, {
+      global: {
+        plugins: [pinia],
+      },
+      props: {
+        src: 'http://example.com/video.m3u8',
+        fallbackSrc: 'http://example.com/video.mp4',
+      },
+    })
+
+    await nextTick()
+    expect(wrapper.vm.usingFallback).toBe(true)
+    expect(wrapper.find('video').element.src).toContain('video.mp4')
   })
 
   it('应该定义正确的 emits', () => {

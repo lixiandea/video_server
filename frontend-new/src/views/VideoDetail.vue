@@ -22,7 +22,7 @@
               v-if="videoUrl"
               ref="playerRef"
               :src="videoUrl"
-              :mime-type="isHls ? 'application/x-mpegURL' : 'video/mp4'"
+              :fallback-src="fallbackVideoUrl"
               :autoPlay="true"
               @ready="onPlayerReady"
               @error="onPlayerError"
@@ -184,6 +184,7 @@ const isOwner = computed(() => {
 
 const videoUrl = ref('')
 const isHls = ref(false)
+const fallbackVideoUrl = ref('')
 const streamError = ref('')
 const likeCount = ref(0)
 const isLiked = ref(false)
@@ -245,6 +246,10 @@ async function loadStreamUrl() {
     videoUrl.value = isHls.value
       ? videoApi.getVideoHls(videoId.value, token)
       : videoApi.getVideoStream(videoId.value, token)
+    // HLS 失败时播放器会自动回退到这个 MP4 地址
+    fallbackVideoUrl.value = isHls.value
+      ? videoApi.getVideoStream(videoId.value, token)
+      : ''
   } catch (err) {
     console.error('Failed to get stream token:', err)
     streamError.value = '获取播放地址失败，请重新登录后再试'
