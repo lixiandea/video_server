@@ -173,6 +173,11 @@ func (s *UserService) DeleteUser(id uint) error {
 			return fmt.Errorf("failed to delete user sessions: %w", err)
 		}
 
+		// 观看行为用于个性化推荐，账号删除时一并清理，避免留下孤儿数据。
+		if err := tx.Unscoped().Where("user_id = ?", id).Delete(&models.VideoView{}).Error; err != nil {
+			return fmt.Errorf("failed to delete user video views: %w", err)
+		}
+
 		// 评论随账号一并下架，沿用单条删除的软删除语义。
 		if err := tx.Where("author_id = ?", id).Delete(&models.Comment{}).Error; err != nil {
 			return fmt.Errorf("failed to delete user comments: %w", err)
@@ -197,6 +202,9 @@ func (s *UserService) DeleteUser(id uint) error {
 		if len(videoUUIDs) > 0 {
 			if err := tx.Unscoped().Where("video_uuid IN ?", videoUUIDs).Delete(&models.VideoLike{}).Error; err != nil {
 				return fmt.Errorf("failed to delete likes on user videos: %w", err)
+			}
+			if err := tx.Unscoped().Where("video_uuid IN ?", videoUUIDs).Delete(&models.VideoView{}).Error; err != nil {
+				return fmt.Errorf("failed to delete views on user videos: %w", err)
 			}
 		}
 

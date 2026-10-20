@@ -43,27 +43,33 @@ async function createActiveVideo(request) {
 
 test('HLS 播放并在失败时回退到 MP4', async ({ page, request, baseURL }) => {
   const { token, videoId } = await createActiveVideo(request)
-  await page.addInitScript((value) => localStorage.setItem('token', value), token)
+  try {
+    await page.addInitScript((value) => localStorage.setItem('token', value), token)
 
-  const hlsRequests = []
-  page.on('request', (req) => {
-    if (req.url().includes('/hls/')) hlsRequests.push(req.url())
-  })
+    const hlsRequests = []
+    page.on('request', (req) => {
+      if (req.url().includes('/hls/')) hlsRequests.push(req.url())
+    })
 
-  await page.goto(`${baseURL}/video/${videoId}`)
-  await page.waitForTimeout(5000)
+    await page.goto(`${baseURL}/video/${videoId}`)
+    await page.waitForTimeout(5000)
 
-  // 1) 播放器确实请求了 HLS playlist/分片，且没有报错层
-  expect(hlsRequests.some((url) => url.includes('index.m3u8'))).toBe(true)
-  expect(hlsRequests.some((url) => url.includes('.ts'))).toBe(true)
-  await expect(page.locator('video.native-video')).toHaveCount(1)
-  await expect(page.locator('.video-error')).toHaveCount(0)
+    // 1) 播放器确实请求了 HLS playlist/分片，且没有报错层
+    expect(hlsRequests.some((url) => url.includes('index.m3u8'))).toBe(true)
+    expect(hlsRequests.some((url) => url.includes('.ts'))).toBe(true)
+    await expect(page.locator('video.native-video')).toHaveCount(1)
+    await expect(page.locator('.video-error')).toHaveCount(0)
 
-  // 2) 拦截 HLS，强制失败 → 应自动回退到 MP4 并显示提示
-  await page.route('**/hls/**', (route) => route.abort())
-  await page.goto(`${baseURL}/video/${videoId}`)
-  await expect(page.locator('.video-fallback-hint')).toHaveCount(1, { timeout: 15000 })
+    // 2) 拦截 HLS，强制失败 → 应自动回退到 MP4 并显示提示
+    await page.route('**/hls/**', (route) => route.abort())
+    await page.goto(`${baseURL}/video/${videoId}`)
+    await expect(page.locator('.video-fallback-hint')).toHaveCount(1, { timeout: 15000 })
 
-  const fallbackSrc = await page.locator('video.native-video').evaluate((v) => v.src)
-  expect(fallbackSrc).toContain('/stream?')
+    const fallbackSrc = await page.locator('video.native-video').evaluate((v) => v.src)
+    expect(fallbackSrc).toContain('/stream?')
+  } finally {
+    await request.delete(`${API}/api/v1/users/account`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  }
 })

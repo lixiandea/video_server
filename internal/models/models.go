@@ -48,6 +48,14 @@ type VideoLike struct {
 	VideoUUID string `gorm:"not null;type:varchar(255);uniqueIndex:idx_user_video" json:"video_uuid"`
 }
 
+// VideoView 记录用户对视频的最近一次有效观看，用于生成个性化推荐。
+// 同一用户重复观看只更新 updated_at，避免刷新页面无限放大推荐权重。
+type VideoView struct {
+	BaseModel
+	UserID    uint   `gorm:"not null;uniqueIndex:idx_video_views_user_video" json:"user_id"`
+	VideoUUID string `gorm:"not null;type:varchar(255);uniqueIndex:idx_video_views_user_video" json:"video_uuid"`
+}
+
 type Comment struct {
 	BaseModel
 	UUID     string `gorm:"uniqueIndex;not null;type:varchar(255)" json:"id"`

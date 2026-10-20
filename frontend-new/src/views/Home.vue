@@ -68,6 +68,45 @@
       </div>
     </section>
 
+    <!-- Personalized Recommendations -->
+    <section class="recommendations-section mb-5">
+      <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <h2 class="mb-1">{{ recommendationTitle }}</h2>
+            <p class="text-muted mb-0">根据观看偏好、热度和更新时间排序</p>
+          </div>
+          <span v-if="recommendationMode === 'personalized'" class="badge text-bg-primary">
+            个性化
+          </span>
+        </div>
+
+        <div v-if="recommendationLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">加载推荐...</span>
+          </div>
+        </div>
+
+        <div v-else-if="recommendationError" class="alert alert-light border" role="alert">
+          <i class="bi bi-info-circle"></i> 推荐暂时不可用，你仍可浏览最新视频。
+        </div>
+
+        <div v-else-if="recommendations.length === 0" class="text-muted py-3">
+          暂无更多推荐，试试搜索或浏览视频列表。
+        </div>
+
+        <div v-else class="row g-4">
+          <div
+            v-for="video in recommendations"
+            :key="video.video_id"
+            class="col-6 col-md-4 col-lg-3"
+          >
+            <VideoCard :video="video" :reason="video.recommendation_reason" />
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Latest Videos Section -->
     <section class="videos-section">
       <div class="container">
@@ -97,25 +136,12 @@
         </div>
         
         <div v-else class="row g-4">
-          <div 
-            v-for="video in videos" 
-            :key="video.video_id" 
+          <div
+            v-for="video in videos"
+            :key="video.video_id"
             class="col-6 col-md-4 col-lg-3"
           >
-            <div class="card h-100 video-card" @click="goToVideo(video.video_id)">
-              <div class="video-thumb">
-                <i class="bi bi-film"></i>
-              </div>
-              <div class="card-body">
-                <h6 class="card-title text-truncate">{{ video.name }}</h6>
-                <p class="card-text small text-muted mb-1">
-                  <i class="bi bi-person"></i> {{ video.author_name || '未知' }}
-                </p>
-                <p class="card-text small text-muted mb-0">
-                  <i class="bi bi-clock"></i> {{ video.display_time }}
-                </p>
-              </div>
-            </div>
+            <VideoCard :video="video" />
           </div>
         </div>
       </div>
@@ -125,32 +151,51 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { useVideoStore } from '@/stores/video'
 import { useUserStore } from '@/stores/user'
+import videoApi from '@/api/video'
+import VideoCard from '@/components/VideoCard.vue'
 
-const router = useRouter()
 const videoStore = useVideoStore()
 const userStore = useUserStore()
 
 const loading = ref(true)
 const error = ref(null)
+const recommendations = ref([])
+const recommendationLoading = ref(true)
+const recommendationError = ref(null)
+const recommendationMode = ref('popular')
 
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const videos = computed(() => videoStore.videos)
+const recommendationTitle = computed(() => {
+  return recommendationMode.value === 'personalized' ? '为你推荐' : '热门推荐'
+})
 
 onMounted(async () => {
   try {
-    await videoStore.fetchVideos(1, 8)
+    await videoStore.fetchVideos(1, 4)
   } catch (err) {
     error.value = '加载视频失败：' + err.message
   } finally {
     loading.value = false
   }
+  await loadRecommendations()
 })
 
-const goToVideo = (id) => {
-  router.push(`/video/${id}`)
+async function loadRecommendations() {
+  recommendationLoading.value = true
+  recommendationError.value = null
+  try {
+    const excludedIds = videos.value.map(video => video.video_id)
+    const response = await videoApi.getRecommendations(4, excludedIds)
+    recommendations.value = response.data.videos || []
+    recommendationMode.value = response.data.mode || 'popular'
+  } catch (err) {
+    recommendationError.value = err.message
+  } finally {
+    recommendationLoading.value = false
+  }
 }
 </script>
 
@@ -175,24 +220,12 @@ const goToVideo = (id) => {
 }
 
 .videos-section {
-  .video-card {
-    cursor: pointer;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    
-    &:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-    }
-    
-    .video-thumb {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      aspect-ratio: 16/9;
-      background: #e9ecef;
-      color: #adb5bd;
-      font-size: 2rem;
-    }
+  margin-bottom: 4rem;
+}
+
+.recommendations-section {
+  .badge {
+    padding: 0.5rem 0.75rem;
   }
 }
 

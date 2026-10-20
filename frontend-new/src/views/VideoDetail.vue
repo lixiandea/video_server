@@ -141,6 +141,13 @@
                   <div class="col-5">
                     <div class="related-thumb rounded">
                       <i class="bi bi-film"></i>
+                      <img
+                        v-if="video.cover_url"
+                        :src="video.cover_url + '?size=320'"
+                        :alt="video.name"
+                        loading="lazy"
+                        @error="event => event.currentTarget.hidden = true"
+                      >
                     </div>
                   </div>
                   <div class="col-7">
@@ -148,6 +155,9 @@
                     <p class="small text-muted mb-0">
                       <i class="bi bi-clock"></i> {{ video.display_time }}
                     </p>
+                    <small v-if="video.recommendation_reason" class="recommendation-reason">
+                      {{ video.recommendation_reason }}
+                    </small>
                   </div>
                 </div>
               </div>
@@ -160,13 +170,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useVideoStore } from '@/stores/video'
 import { useUserStore } from '@/stores/user'
-import VideoPlayer from '@/components/VideoPlayer.vue'
 import videoApi from '@/api/video'
 import apiClient from '@/api/client'
+
+// hls.js 只在进入详情页并拿到播放地址后加载，首页不携带播放器引擎。
+const VideoPlayer = defineAsyncComponent(() => import('@/components/VideoPlayer.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -205,10 +217,11 @@ onUnmounted(() => {
   if (processingTimer) clearTimeout(processingTimer)
 })
 
-onMounted(async () => {
-  await loadVideoDetail()
-  await loadComments()
-  await loadRelatedVideos()
+onMounted(() => {
+  // 评论和推荐互不依赖，与详情并行加载。
+  loadVideoDetail()
+  loadComments()
+  loadRelatedVideos()
 })
 
 async function loadVideoDetail() {
@@ -418,6 +431,7 @@ function formatDuration(seconds) {
     }
     
     .related-thumb {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -425,6 +439,22 @@ function formatDuration(seconds) {
       background: #e9ecef;
       color: #adb5bd;
       font-size: 1.5rem;
+      overflow: hidden;
+
+      img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+
+    .recommendation-reason {
+      display: block;
+      margin-top: 0.25rem;
+      color: #6366f1;
+      font-size: 0.72rem;
     }
   }
 }

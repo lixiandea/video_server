@@ -1,12 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '@/views/Home.vue'
-import Videos from '@/views/Videos.vue'
-import VideoDetail from '@/views/VideoDetail.vue'
-import VideoPlayer from '@/views/VideoPlayer.vue'
-import Login from '@/views/Login.vue'
-import Register from '@/views/Register.vue'
-import Profile from '@/views/Profile.vue'
-import Upload from '@/views/Upload.vue'
 
 const routes = [
   {
@@ -18,43 +11,43 @@ const routes = [
   {
     path: '/videos',
     name: 'Videos',
-    component: Videos,
+    component: () => import('@/views/Videos.vue'),
     meta: { title: '视频列表' }
   },
   {
     path: '/video/:id',
     name: 'VideoDetail',
-    component: VideoDetail,
+    component: () => import('@/views/VideoDetail.vue'),
     meta: { title: '视频详情' }
   },
   {
     path: '/watch/:id',
     name: 'VideoPlayer',
-    component: VideoPlayer,
+    component: () => import('@/views/VideoPlayer.vue'),
     meta: { title: '播放视频' }
   },
   {
     path: '/login',
     name: 'Login',
-    component: Login,
+    component: () => import('@/views/Login.vue'),
     meta: { title: '登录', requiresGuest: true }
   },
   {
     path: '/register',
     name: 'Register',
-    component: Register,
+    component: () => import('@/views/Register.vue'),
     meta: { title: '注册', requiresGuest: true }
   },
   {
     path: '/profile',
     name: 'Profile',
-    component: Profile,
+    component: () => import('@/views/Profile.vue'),
     meta: { title: '个人中心', requiresAuth: true }
   },
   {
     path: '/upload',
     name: 'Upload',
-    component: Upload,
+    component: () => import('@/views/Upload.vue'),
     meta: { title: '上传视频', requiresAuth: true }
   }
 ]

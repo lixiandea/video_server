@@ -228,6 +228,14 @@ func (h *VideoHandler) GetVideoInfo(c *gin.Context) {
 		} else {
 			video.ViewCount++
 		}
+		if userID, ok := c.Get("user_id"); ok {
+			if err := h.videoService.RecordVideoView(userID.(uint), video.UUID); err != nil {
+				logging.GetLogger().Warn("Failed to record video view",
+					zap.String("video_id", video.UUID),
+					zap.Uint("user_id", userID.(uint)),
+					zap.Error(err))
+			}
+		}
 	}
 
 	// 获取作者信息
@@ -437,11 +445,84 @@ func (h *VideoHandler) ListVideos(c *gin.Context) {
 	})
 }
 
-// GetRelatedVideos 处理 GET /videos/:video_id/related：同作者的其他视频。
+func optionalUserID(c *gin.Context) *uint {
+	value, ok := c.Get("user_id")
+	if !ok {
+		return nil
+	}
+	userID, ok := value.(uint)
+	if !ok {
+		return nil
+	}
+	return &userID
+}
+
+func parseExcludedVideoIDs(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	ids := make([]string, 0)
+	for _, id := range strings.Split(raw, ",") {
+		if id = strings.TrimSpace(id); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+func (h *VideoHandler) buildRecommendationList(items []services.VideoRecommendation) ([]map[string]interface{}, error) {
+	videos := make([]*models.Video, len(items))
+	for i, item := range items {
+		videos[i] = item.Video
+	}
+
+	list, err := h.buildVideoList(videos)
+	if err != nil {
+		return nil, err
+	}
+	for i, item := range items {
+		list[i]["recommendation_reason"] = item.Reason
+	}
+	return list, nil
+}
+
+// GetRecommendations 处理 GET /recommendations：
+// 登录用户使用观看行为个性化，匿名用户返回热门/新上架内容。
+func (h *VideoHandler) GetRecommendations(c *gin.Context) {
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "12"))
+	if err != nil || limit < 1 || limit > 50 {
+		limit = 12
+	}
+
+	items, mode, err := h.videoService.GetRecommendations(
+		optionalUserID(c),
+		parseExcludedVideoIDs(c.Query("exclude_ids")),
+		limit,
+	)
+	if err != nil {
+		utils.FailFrom(c, err, "Failed to get recommendations")
+		return
+	}
+
+	list, err := h.buildRecommendationList(items)
+	if err != nil {
+		utils.FailFrom(c, err, "Failed to get recommendation authors")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"videos": list,
+		"mode":   mode,
+		"limit":  limit,
+	})
+}
+
+// GetRelatedVideos 处理 GET /videos/:video_id/related：
+// 复用推荐排序，并排除当前视频和用户已观看内容。
 func (h *VideoHandler) GetRelatedVideos(c *gin.Context) {
 	videoID := c.Param("video_id")
 
-	video, err := h.videoService.GetVideoByID(videoID)
+	_, err := h.videoService.GetVideoByID(videoID)
 	if err != nil {
 		utils.FailFrom(c, err, "Video not found")
 		return
@@ -452,19 +533,22 @@ func (h *VideoHandler) GetRelatedVideos(c *gin.Context) {
 		limit = 6
 	}
 
-	videos, err := h.videoService.GetRelatedVideos(videoID, video.AuthorID, limit)
+	items, mode, err := h.videoService.GetRecommendations(optionalUserID(c), []string{videoID}, limit)
 	if err != nil {
 		utils.FailFrom(c, err, "Failed to get related videos")
 		return
 	}
 
-	list, err := h.buildVideoList(videos)
+	list, err := h.buildRecommendationList(items)
 	if err != nil {
 		utils.FailFrom(c, err, "Failed to get video authors")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"videos": list})
+	c.JSON(http.StatusOK, gin.H{
+		"videos": list,
+		"mode":   mode,
+	})
 }
 
 // GetUserVideos 处理 GET /users/videos：当前用户上传的视频。

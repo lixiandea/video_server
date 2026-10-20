@@ -183,6 +183,7 @@ func runCheck(cfg *config.Config) error {
 		&models.VideoLike{},
 		&models.Comment{},
 		&models.Session{},
+		&models.VideoView{},
 		&models.VideoDeletionRecord{},
 		&models.AuditLog{},
 	}

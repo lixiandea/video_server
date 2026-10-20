@@ -161,6 +161,7 @@ func migrateSchema(db *gorm.DB) {
 		{"comments", &models.Comment{}},
 		{"sessions", &models.Session{}},
 		{"video_likes", &models.VideoLike{}},
+		{"video_views", &models.VideoView{}},
 		{"video_deletion_records", &models.VideoDeletionRecord{}},
 	}
 

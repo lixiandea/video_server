@@ -35,35 +35,12 @@
       </div>
       
       <div v-else class="row g-4">
-        <div 
-          v-for="video in videos" 
-          :key="video.video_id" 
+        <div
+          v-for="video in videos"
+          :key="video.video_id"
           class="col-6 col-md-4 col-lg-3"
         >
-          <div class="card h-100 video-card" @click="goToVideo(video.video_id)">
-            <div class="video-thumb">
-              <img
-                v-if="video.cover_url"
-                :src="video.cover_url + '?size=320'"
-                :srcset="`${video.cover_url}?size=320 320w, ${video.cover_url}?size=720 720w`"
-                sizes="(max-width: 768px) 50vw, 33vw"
-                :alt="video.name"
-                loading="lazy"
-              >
-              <i v-else class="bi bi-film"></i>
-              <span v-if="video.duration" class="video-duration">{{ formatDuration(video.duration) }}</span>
-            </div>
-            <div class="card-body">
-              <h6 class="card-title text-truncate">{{ video.name }}</h6>
-              <p class="card-text small text-muted mb-1">
-                <i class="bi bi-person"></i> {{ video.author_name || '未知' }}
-              </p>
-              <p class="card-text small text-muted mb-0 d-flex justify-content-between">
-                <span><i class="bi bi-eye"></i> {{ video.view_count || 0 }}</span>
-                <span><i class="bi bi-clock"></i> {{ video.display_time }}</span>
-              </p>
-            </div>
-          </div>
+          <VideoCard :video="video" />
         </div>
       </div>
       
@@ -96,10 +73,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useVideoStore } from '@/stores/video'
+import VideoCard from '@/components/VideoCard.vue'
 
-const router = useRouter()
 const videoStore = useVideoStore()
 
 const loading = ref(true)
@@ -143,21 +119,6 @@ function changePage(page) {
   loadVideos()
 }
 
-function goToVideo(id) {
-  router.push(`/video/${id}`)
-}
-
-// 后端返回的是秒数，列表卡片只需要粗略的 mm:ss / h:mm:ss
-function formatDuration(seconds) {
-  const total = Math.round(Number(seconds) || 0)
-  const hours = Math.floor(total / 3600)
-  const minutes = Math.floor((total % 3600) / 60)
-  const secs = total % 60
-  const pad = (value) => String(value).padStart(2, '0')
-
-  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(secs)}` : `${minutes}:${pad(secs)}`
-}
-
 </script>
 
 <style lang="scss" scoped>
@@ -169,45 +130,6 @@ function formatDuration(seconds) {
 
 .search-box {
   max-width: 300px;
-}
-
-.video-card {
-  cursor: pointer;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  
-  &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  }
-  
-  .video-thumb {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    aspect-ratio: 16/9;
-    background: #e9ecef;
-    color: #adb5bd;
-    font-size: 2rem;
-    overflow: hidden;
-
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-  }
-
-  .video-duration {
-    position: absolute;
-    right: 0.5rem;
-    bottom: 0.5rem;
-    padding: 0.1rem 0.35rem;
-    border-radius: 0.25rem;
-    background: rgba(0, 0, 0, 0.75);
-    color: #fff;
-    font-size: 0.75rem;
-  }
 }
 
 @media (max-width: 768px) {

@@ -9,6 +9,16 @@ const videoApi = {
     })
   },
 
+  // 推荐：登录时个性化，匿名时返回热门/新上架内容。
+  getRecommendations(limit = 8, excludeIds = []) {
+    return apiClient.get('/recommendations', {
+      params: {
+        limit,
+        exclude_ids: excludeIds.length ? excludeIds.join(',') : undefined,
+      }
+    })
+  },
+
   // 搜索视频（同一端点，带 q 参数）
   searchVideos(query, page = 1, pageSize = 12) {
     return apiClient.get('/videos', {

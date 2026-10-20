@@ -79,14 +79,15 @@
 
 ### 阶段 E：清理与收尾
 
-- 评估移除未使用的 `hls.js`；同步 README / AGENTS 的技术栈版本；
+- 保留 `hls.js`，但通过详情页异步播放器与独立 chunk 延迟加载；
+- 路由页面改为懒加载，共用视频卡片抽为 `VideoCard.vue`；
 - 全量验收：`npm ci` / `build` / `lint` / `vitest` / `playwright` / `npm audit`，CI 全绿。
 
 ## 4. 每阶段验收基线
 
 - `npm ci` 成功，`npm run build` 无错误；
-- `npm run lint` 0 problem，`npx vitest run` 全绿（22 用例）；
-- `E2E_BASE_URL=http://localhost:8000 npx playwright test --project=chromium` 19/19；
+- `npm run lint` 0 problem，`npx vitest run` 全绿（23 用例）；
+- `E2E_BASE_URL=http://localhost:8000 npx playwright test --project=chromium` 21/21；
 - CI 四个作业全绿；任一失败即回滚该阶段提交。
 
 ## 5. 预估
@@ -106,3 +107,6 @@
   升级等价于重写播放器；本轮保持 8.24.2，B/C 另立项目。
 - 2026-10-20：**阶段 D 完成（C 方案）**——移除 video.js，播放器改为原生 `<video>` + hls.js，
   保留 MP4 回退；新增播放器 e2e（HLS playlist/分片 + 强制失败回退）。
+- 2026-10-20：**阶段 E 首轮完成**——首页只加载自身路由，详情页异步加载播放器；移除
+  `vendor/client` 手工分块形成的循环依赖。首页实测不请求 `VideoDetail` 与 `hls.js`，
+  build / lint / Vitest 23 / e2e 21 全部通过。

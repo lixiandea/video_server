@@ -37,13 +37,10 @@ export default defineConfig(({ mode }) => {
       sourcemap: true,
       rollupOptions: {
         output: {
-          // Vite 8（Rolldown）只接受函数形式的 manualChunks
+          // 只显式拆出体积较大的 HLS 引擎；其余共享依赖交给构建器，
+          // 避免手工 vendor/client 分块形成循环初始化。
           manualChunks(id) {
             if (id.includes('node_modules/hls.js')) return 'hls-js'
-            if (id.includes('node_modules/vue') ||
-                id.includes('node_modules/@vue') ||
-                id.includes('node_modules/pinia') ||
-                id.includes('node_modules/axios')) return 'vendor'
           },
         },
       },

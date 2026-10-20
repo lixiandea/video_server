@@ -81,6 +81,36 @@ func AuthMiddleware(sessions SessionValidator) gin.HandlerFunc {
 	}
 }
 
+// OptionalAuthMiddleware 用于同时服务登录与未登录用户的公开接口。
+// 没有令牌或令牌失效时按匿名请求继续，避免推荐等非敏感功能被鉴权故障阻断。
+func OptionalAuthMiddleware(sessions SessionValidator) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if !strings.HasPrefix(authHeader, "Bearer ") || sessions == nil {
+			c.Next()
+			return
+		}
+
+		claims, err := auth.ParseJWT(strings.TrimPrefix(authHeader, "Bearer "))
+		if err != nil {
+			c.Next()
+			return
+		}
+		if err := sessions.ValidateSession(claims.SessionID, claims.UserID); err != nil {
+			logging.GetLogger().Warn("Optional session validation failed",
+				zap.Uint("user_id", claims.UserID),
+				zap.Error(err))
+			c.Next()
+			return
+		}
+
+		c.Set("user_id", claims.UserID)
+		c.Set("username", claims.Username)
+		c.Set("session_id", claims.SessionID)
+		c.Next()
+	}
+}
+
 // StreamAuthMiddleware 仅用于播放路由。媒体元素（<video src>）无法设置请求头，
 // 因此除标准 Authorization 头外，还接受 URL 上的短时效播放令牌。
 func StreamAuthMiddleware(sessions SessionValidator) gin.HandlerFunc {

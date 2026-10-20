@@ -26,6 +26,16 @@ test.describe('首页', () => {
     await expect(page.locator('text=云端存储')).toBeVisible()
   })
 
+  test('应该显示推荐区块和推荐理由', async ({ page }) => {
+    await page.goto('/')
+
+    const section = page.locator('.recommendations-section')
+    await expect(section).toBeVisible()
+    await expect(section.locator('h2')).toContainText(/热门推荐|为你推荐/)
+    await expect(section.locator('.video-card').first()).toBeVisible()
+    await expect(section.locator('.recommendation-reason').first()).toBeVisible()
+  })
+
   test('应该可以导航到视频列表页', async ({ page }) => {
     await page.goto('/')
     
