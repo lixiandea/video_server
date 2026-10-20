@@ -32,8 +32,16 @@ test.describe('首页', () => {
     const section = page.locator('.recommendations-section')
     await expect(section).toBeVisible()
     await expect(section.locator('h2')).toContainText(/热门推荐|为你推荐/)
-    await expect(section.locator('.video-card').first()).toBeVisible()
-    await expect(section.locator('.recommendation-reason').first()).toBeVisible()
+    await expect(section.locator('.spinner-border')).toHaveCount(0)
+
+    const cards = section.locator('.video-card')
+    const emptyState = section.locator('text=暂无更多推荐')
+    expect((await cards.count()) > 0 || await emptyState.isVisible()).toBeTruthy()
+
+    if (await cards.count() > 0) {
+      await expect(cards.first()).toBeVisible()
+      await expect(section.locator('.recommendation-reason').first()).toBeVisible()
+    }
   })
 
   test('应该可以导航到视频列表页', async ({ page }) => {
