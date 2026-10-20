@@ -93,6 +93,13 @@ func (s *StorageService) TempDir() string {
 	return s.cfg.TempDir
 }
 
+func (s *StorageService) OutputDir() string {
+	if s.IsObjectStorage() {
+		return s.cfg.TempDir
+	}
+	return s.cfg.VideoDir
+}
+
 func (s *StorageService) Healthy(ctx context.Context) error {
 	if !s.IsObjectStorage() {
 		_, err := os.Stat(s.cfg.TempDir)

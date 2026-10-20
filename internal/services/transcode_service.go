@@ -34,7 +34,7 @@ type TranscodeService struct {
 func NewTranscodeService(q *queue.TaskQueue, storageService *storage.StorageService, moderationRequired bool) *TranscodeService {
 	return &TranscodeService{
 		queue:              q,
-		outputDir:          storageService.TempDir(),
+		outputDir:          storageService.OutputDir(),
 		workerName:         fmt.Sprintf("transcoder-%d", time.Now().UnixNano()),
 		maxRetries:         envInt("TRANSCODE_MAX_RETRIES", 3),
 		visibilityTimeout:  envDuration("TRANSCODE_VISIBILITY_TIMEOUT", queue.DefaultQueueConfig.VisibilityTimeout),

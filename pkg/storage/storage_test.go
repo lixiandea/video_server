@@ -21,6 +21,9 @@ func TestLocalStorageLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if service.OutputDir() != filepath.Join(root, "videos") {
+		t.Fatalf("local output dir must be video dir, got %q", service.OutputDir())
+	}
 	if err := service.SaveVideo("video-1", bytes.NewBufferString("fixture")); err != nil {
 		t.Fatal(err)
 	}
