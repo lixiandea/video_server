@@ -22,5 +22,5 @@ route:
 receivers:
   - name: email
     email_configs:
-      - to: 'lixiandea@163.com'
+      - to: '__ALERT_EMAIL_TO__'
         send_resolved: true

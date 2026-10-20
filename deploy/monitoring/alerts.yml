@@ -79,3 +79,43 @@ groups:
           summary: "数据库连接数偏高"
           description: "当前 open connections = {{ $value }}（MySQL 默认 max_connections=151），检查连接泄漏或慢查询。"
           runbook: "docs/monitoring.md#告警-runbook"
+
+      - alert: MediaReplicationLagHigh
+        expr: max(media_replication_lag_seconds{job="video-scheduler"}) > 600
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "媒体备份复制延迟超过 10 分钟"
+          description: "最旧未复制媒体已等待 {{ $value | humanizeDuration }}，检查 Spaces 凭据、备份桶和 Scheduler 日志。"
+          runbook: "docs/production-runbook.md#媒体备份"
+
+      - alert: MediaReplicationBacklog
+        expr: max(media_replication_pending{job="video-scheduler"}) > 100
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "媒体备份积压超过 100 个视频"
+          description: "当前待复制视频 {{ $value }} 个，检查对象存储带宽和 Scheduler 处理能力。"
+          runbook: "docs/production-runbook.md#媒体备份"
+
+      - alert: ReviewBacklogHigh
+        expr: max(video_review_backlog{job="video-scheduler"}) > 50
+        for: 24h
+        labels:
+          severity: warning
+        annotations:
+          summary: "视频审核队列持续积压"
+          description: "待审核视频 {{ $value }} 个，需增加审核人员或调整上传配额。"
+          runbook: "docs/production-runbook.md#内容审核"
+
+      - alert: AuditLogsDropped
+        expr: increase(audit_logs_dropped_total{job="video-api-server"}[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "审计日志开始被丢弃"
+          description: "异步审计队列已满，检查 MySQL 性能与审计表增长。"
+          runbook: "docs/production-runbook.md#审计日志"

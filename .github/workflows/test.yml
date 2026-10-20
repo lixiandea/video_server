@@ -15,6 +15,15 @@ jobs:
   backend:
     name: Go 格式 / 静态检查 / 单元测试
     runs-on: ubuntu-latest
+    services:
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        command: server /data
+        ports:
+          - 9000:9000
     steps:
     - uses: actions/checkout@v4
 
@@ -43,6 +52,18 @@ jobs:
         go vet ./...
         go test ./...
 
+    - name: S3 兼容集成测试
+      env:
+        S3_TEST_ENDPOINT: http://127.0.0.1:9000
+        S3_TEST_ACCESS_KEY: minioadmin
+        S3_TEST_SECRET_KEY: minioadmin
+      run: |
+        for i in $(seq 1 30); do
+          curl -fs http://127.0.0.1:9000/minio/health/live >/dev/null && break
+          sleep 1
+        done
+        go test ./pkg/storage -run TestS3CompatibleLifecycle -v
+
     - name: 依赖漏洞扫描（govulncheck）
       run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
@@ -55,10 +76,42 @@ jobs:
 
     - name: 校验 Alertmanager 配置
       run: |
+        sed -e 's|__SMTP_PASSWORD__|ci-placeholder|g' \
+            -e 's|__ALERT_EMAIL_TO__|alerts@example.com|g' \
+            deploy/monitoring/alertmanager.yml > /tmp/alertmanager.yml
         docker run --rm \
           --entrypoint amtool \
-          -v "$PWD/deploy/monitoring:/cfg:ro" \
+          -v "/tmp/alertmanager.yml:/cfg/alertmanager.yml:ro" \
           prom/alertmanager:v0.34.1 check-config /cfg/alertmanager.yml
+
+    - name: 校验生产 Compose
+      env:
+        APP_DOMAIN: video.example.com
+        DB_HOST: db.example.com
+        DB_USER: video_app
+        REDIS_ADDR: redis.example.com:25061
+        S3_ENDPOINT: https://media.nyc3.digitaloceanspaces.com
+        S3_BUCKET: media
+        S3_BACKUP_ENDPOINT: https://backup.sfo3.digitaloceanspaces.com
+        S3_BACKUP_BUCKET: backup
+        REGISTRY: ghcr.io/example
+        IMAGE_TAG: test
+        ALERT_EMAIL_TO: ops@example.com
+        SECRETS_DIR: ./secrets
+      run: docker compose -f docker-compose.prod.yml config -q
+
+  infrastructure:
+    name: Terraform 校验
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+    - uses: actions/checkout@v4
+    - uses: hashicorp/setup-terraform@v3
+    - run: terraform fmt -check -recursive
+    - run: terraform init -backend=false -input=false
+    - run: terraform validate
 
   api:
     name: API 集成测试

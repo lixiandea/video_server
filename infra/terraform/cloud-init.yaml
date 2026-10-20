@@ -1,0 +1,63 @@
+#cloud-config
+package_update: true
+users:
+  - default
+  - name: deploy
+    shell: /bin/bash
+    groups: [sudo]
+    ssh_authorized_keys:
+      - ${deploy_ssh_public_key}
+
+packages:
+  - ca-certificates
+  - curl
+  - docker.io
+  - docker-compose-v2
+  - mysql-client
+  - rclone
+  - ufw
+
+write_files:
+  - path: /etc/sysctl.d/99-video-server.conf
+    content: |
+      net.core.somaxconn=4096
+      net.ipv4.tcp_fin_timeout=15
+
+  - path: /etc/systemd/system/video-server-log-archive.service
+    content: |
+      [Unit]
+      Description=Archive video-server logs
+      After=docker.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/video-server/scripts/archive-logs.sh
+
+  - path: /etc/systemd/system/video-server-log-archive.timer
+    content: |
+      [Unit]
+      Description=Daily video-server log archive
+
+      [Timer]
+      OnCalendar=*-*-* 02:15:00 UTC
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+runcmd:
+  - systemctl enable --now docker
+  - usermod -aG docker deploy
+  - sysctl --system
+  - mkdir -p /opt/video-server /opt/video-server/secrets
+  - chown -R deploy:deploy /opt/video-server
+  - chmod 700 /opt/video-server/secrets
+  - install -d -o deploy -g deploy /var/backups/video-server /var/log/video-server/archive
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw allow 22/tcp
+  - ufw --force enable
+  - systemctl daemon-reload
+  - systemctl enable --now video-server-log-archive.timer

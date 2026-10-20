@@ -1,0 +1,6 @@
+cloudflare_zone      = "example.com"
+app_domain           = "video.example.com"
+ssh_key_fingerprint  = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+deploy_ssh_public_key = "ssh-ed25519 AAAA... deploy@example"
+ssh_allowed_ips      = ["203.0.113.10/32"]
+# 敏感值不要写入 tfvars，使用 TF_VAR_digitalocean_token / TF_VAR_cloudflare_api_token。

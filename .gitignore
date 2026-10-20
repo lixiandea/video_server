@@ -16,6 +16,15 @@ frontend-vue/node_modules/
 .env
 .env.*
 !.env.example
+!.env.production.example
+secrets/
+
+# Terraform local state and variables
+infra/terraform/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
 
 # Test temporary files
 /tmp/register_response.json

@@ -201,6 +201,19 @@ make migrate-down       # 回滚最近 1 个版本（破坏性，详见迁移策
 - Prometheus: http://localhost:9090
 - Alertmanager: http://localhost:9093（告警邮件发给 `lixiandea@163.com`）
 
+开发 Compose 为本地便利而使用明文 HTTP、本地文件存储并暴露基础设施端口，不能直接作为公网生产拓扑。
+海外生产部署使用 DigitalOcean + 托管 MySQL/Redis + Spaces + Cloudflare，步骤见
+[生产部署指南](docs/production-deployment.md)，故障处理见
+[生产运行手册](docs/production-runbook.md)。
+
+生产默认启用：
+
+- 15 分钟访问令牌 + 30 天 HttpOnly/Secure 刷新 Cookie；
+- 新上传先审核后公开；
+- 每用户 100 个视频 / 10 GB / 每 24 小时 20 次上传；
+- 私有对象存储、短时签名播放地址、跨区域媒体备份；
+- Docker Secrets、Cloudflare Full (strict)、WAF/限流和内部监控页面。
+
 ### 统一命令入口
 
 `make help` 列出全部目标，常用命令：
@@ -498,7 +511,7 @@ npm run dev            # http://localhost:3000
 ### 认证与授权
 
 - **密码安全**: 使用 bcrypt 加密存储密码
-- **会话管理**: JWT 令牌进行状态管理
+- **会话管理**: 短期 JWT + 可轮换、可撤销的 HttpOnly 刷新 Cookie
 - **权限控制**: 基于角色的访问控制
 
 ### 输入验证

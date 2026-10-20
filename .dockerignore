@@ -8,6 +8,8 @@
 bin
 storage
 docs
+infra
+secrets
 tmp
 *.md
 **/*.md

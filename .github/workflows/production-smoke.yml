@@ -1,0 +1,22 @@
+name: Production Smoke
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public frontend and API
+        env:
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+        run: |
+          test -n "$PRODUCTION_URL"
+          curl --fail --silent --show-error --max-time 20 "$PRODUCTION_URL/" >/dev/null
+          curl --fail --silent --show-error --max-time 20 \
+            "$PRODUCTION_URL/api/v1/recommendations?limit=1" >/dev/null
