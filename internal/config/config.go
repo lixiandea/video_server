@@ -48,16 +48,16 @@ type RateLimitConfig struct {
 }
 
 type DatabaseConfig struct {
-	Host      string `mapstructure:"host"`
-	Port      int    `mapstructure:"port"`
-	User      string `mapstructure:"user"`
-	Password  string `mapstructure:"password"`
-	Name      string `mapstructure:"name"`
-	Charset   string `mapstructure:"charset"`
-	TLSCAPath string `mapstructure:"tls_ca_path"`
-	LogLevel  string `mapstructure:"log_level"`
-	MaxOpenConns int `mapstructure:"max_open_conns"`
-	MaxIdleConns int `mapstructure:"max_idle_conns"`
+	Host         string `mapstructure:"host"`
+	Port         int    `mapstructure:"port"`
+	User         string `mapstructure:"user"`
+	Password     string `mapstructure:"password"`
+	Name         string `mapstructure:"name"`
+	Charset      string `mapstructure:"charset"`
+	TLSCAPath    string `mapstructure:"tls_ca_path"`
+	LogLevel     string `mapstructure:"log_level"`
+	MaxOpenConns int    `mapstructure:"max_open_conns"`
+	MaxIdleConns int    `mapstructure:"max_idle_conns"`
 	// AutoMigrate 控制服务启动时是否执行 GORM AutoMigrate。
 	// 默认关闭：结构变更统一走 `migrate up`（见 docs/database-migration-strategy.md）；
 	// 仅本地/CI 追求「一条命令起库」时才开启，且 release 模式会强制忽略。
