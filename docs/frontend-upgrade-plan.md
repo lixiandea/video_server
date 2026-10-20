@@ -11,7 +11,7 @@
 | jsdom | 30.1.3 | 30.1.3 | 已升级 |
 | @playwright/test | 1.64.1 | 1.64.1 | 已升级 |
 | sass | 1.105.2 | 1.105.2 | 已升级 |
-| hls.js | 1.7.3 | 1.7.3 | 已是最新；当前代码未直接引用 |
+| hls.js | 1.7.3 | 1.7.3 | 已是最新；原生 `<video>` 播放器的 HLS 引擎 |
 | eslint | 10.13.0 | 10.13.0 | 已升级（flat config） |
 | eslint-plugin-vue | 10.11.1 | 10.11.1 | 已升级，兼容 eslint 8/9/10 |
 | pinia | 4.1.0 | 4.1.0 | 已升级 |
@@ -32,7 +32,7 @@
 - **video.js 10**：`VideoPlayer.vue` 依赖 `html5.hls` 选项、`controlBar.children` 自定义控件、
   `playbackRates`、中文语言包与 `dispose/src()`；升级前先读 v10 迁移说明，升级后必须手动验证
   HLS 多码率播放、mp4 回退、清晰度/倍速控件、全屏与移动端。
-- **hls.js**：当前未被直接 import（video.js 8+ 自带 VHS）；若升级后仍无引用，考虑移除依赖。
+- **hls.js**：已成为播放器引擎（原生 `<video>` + hls.js 1.7.3），保留。
 - 每个主版本单独提交，失败可单独回滚；不把多个主版本混在一个提交里。
 
 ## 3. 分阶段计划
