@@ -15,17 +15,12 @@ jobs:
   backend:
     name: Go 格式 / 静态检查 / 单元测试
     runs-on: ubuntu-latest
-    services:
-      minio:
-        image: minio/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        command: server /data
-        ports:
-          - 9000:9000
     steps:
     - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
 
     - uses: actions/setup-go@v5
       with:
@@ -58,8 +53,10 @@ jobs:
         S3_TEST_ACCESS_KEY: minioadmin
         S3_TEST_SECRET_KEY: minioadmin
       run: |
+        python -m pip install --quiet 'moto[server]==5.1.22'
+        moto_server -H 127.0.0.1 -p 9000 > /tmp/moto.log 2>&1 &
         for i in $(seq 1 30); do
-          curl -fs http://127.0.0.1:9000/minio/health/live >/dev/null && break
+          curl -fs http://127.0.0.1:9000/ >/dev/null && break
           sleep 1
         done
         go test ./pkg/storage -run TestS3CompatibleLifecycle -v
